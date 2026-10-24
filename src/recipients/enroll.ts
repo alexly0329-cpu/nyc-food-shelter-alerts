@@ -17,6 +17,8 @@ export class EnrollError extends Error {
 
 export type EnrollInput = {
   providerId: string;
+  /** The signed-in staff user; recorded in audit_log. */
+  actorUserId: string;
   phone: string;
   channel: 'sms' | 'voice';
   language: string;
@@ -37,6 +39,9 @@ export async function enrollRecipient(db: pg.Pool, input: EnrollInput): Promise<
   if (input.method !== 'verbal' && input.method !== 'written') throw new EnrollError('INVALID_INPUT', 'Method must be verbal or written');
 
   return withTx(db, async (c) => {
+    // Lock the existing row so the audit action reflects the status we actually replace.
+    const prev = await c.query('SELECT status FROM recipients WHERE phone_hash = $1 FOR UPDATE', [phoneHash(phone)]);
+    const wasStopped = prev.rows[0]?.status === 'stopped';
     // Upsert on phone_hash: concurrent enrollments of one number converge on one row.
     const r = await c.query(
       `INSERT INTO recipients (phone, phone_hash, channel, language, zip, lat, lng, enrolled_by_provider_id)
@@ -51,6 +56,11 @@ export async function enrollRecipient(db: pg.Pool, input: EnrollInput): Promise<
       `INSERT INTO consents (recipient_id, provider_id, method, consent_text_version) VALUES ($1, $2, $3, $4)`,
       [recipientId, input.providerId, input.method, CONSENT_SCRIPT_VERSION],
     );
+    await c.query(`INSERT INTO audit_log (actor_id, action, target_type, target_id) VALUES ($1, $2, 'recipient', $3)`, [
+      input.actorUserId,
+      wasStopped ? 'recipient.reenroll_after_stop' : 'recipient.enroll',
+      recipientId,
+    ]);
     return { recipientId };
   });
 }

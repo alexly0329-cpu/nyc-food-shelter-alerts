@@ -3,11 +3,13 @@ import { getPool } from '../src/db.js';
 import { phoneHash } from '../src/crypto.js';
 import { CONSENT_SCRIPT_VERSION, EnrollError, enrollRecipient } from '../src/recipients/enroll.js';
 import { revokeConsent } from '../src/recipients/revoke.js';
+import { mkActor } from './helpers.js';
 
 const pool = getPool();
 let providerId: string;
+let actorUserId: string;
 const input = () => ({
-  providerId, phone: '(718) 555-0142', channel: 'sms' as const, language: 'en', zip: '11201',
+  providerId, actorUserId, phone: '(718) 555-0142', channel: 'sms' as const, language: 'en', zip: '11201',
   method: 'verbal' as const, scriptConfirmed: true,
 });
 const count = async (t: string) => (await pool.query(`SELECT count(*)::int AS n FROM ${t}`)).rows[0].n as number;
@@ -15,6 +17,7 @@ const code = (p: Promise<unknown>) => p.then(() => null, (e) => (e instanceof En
 
 beforeEach(async () => {
   await pool.query('TRUNCATE recipients, consents, providers CASCADE');
+  actorUserId = await mkActor(pool);
   const r = await pool.query(
     `INSERT INTO providers (name, address, contact, status) VALUES ('Pantry', '1 Main St', 'Pat', 'approved') RETURNING id`,
   );
@@ -110,6 +113,33 @@ describe('enrollRecipient', () => {
     expect(c.rows).toHaveLength(2);
     expect(c.rows[0].revoked_at).not.toBeNull();
     expect(c.rows[1].revoked_at).toBeNull();
+  });
+});
+
+describe('enroll audit', () => {
+  const audit = async () => (await pool.query('SELECT actor_id, action, target_type, target_id FROM audit_log ORDER BY created_at')).rows;
+
+  it('writes recipient.enroll with ids only', async () => {
+    const { recipientId } = await enrollRecipient(pool, input());
+    expect(await audit()).toEqual([{ actor_id: actorUserId, action: 'recipient.enroll', target_type: 'recipient', target_id: recipientId }]);
+    expect(JSON.stringify(await pool.query('SELECT * FROM audit_log').then((r) => r.rows))).not.toContain('7185550142');
+  });
+  it('writes recipient.reenroll_after_stop when the number was stopped', async () => {
+    const { recipientId } = await enrollRecipient(pool, input());
+    await revokeConsent(pool, '+17185550142');
+    await enrollRecipient(pool, input());
+    expect((await audit()).map((a) => a.action)).toEqual(['recipient.enroll', 'recipient.reenroll_after_stop']);
+    expect((await audit())[1].target_id).toBe(recipientId);
+  });
+  it('an active re-enrollment is a plain enroll', async () => {
+    await enrollRecipient(pool, input());
+    await enrollRecipient(pool, input());
+    expect((await audit()).map((a) => a.action)).toEqual(['recipient.enroll', 'recipient.enroll']);
+  });
+  it('a failed audit rolls the enrollment back', async () => {
+    await expect(enrollRecipient(pool, { ...input(), actorUserId: '00000000-0000-4000-8000-000000000000' })).rejects.toThrow();
+    expect(await count('recipients')).toBe(0);
+    expect(await count('consents')).toBe(0);
   });
 });
 

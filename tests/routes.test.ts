@@ -575,3 +575,20 @@ describe('opt-out routes', () => {
     expect((await post('/api/optout', { phone: PHONE }, (await admin()).cookie)).statusCode).toBe(403);
   });
 });
+
+describe('staff audit via routes', () => {
+  it('enroll and post write audit rows for the session user, without phone or message', async () => {
+    const s = await staff();
+    expect((await post('/api/enroll', enrollBody(), s.cookie)).statusCode).toBe(201);
+    const a = await post('/api/alerts', alertBody(), s.cookie);
+    expect(a.statusCode).toBe(201);
+    const rows = (await pool.query(`SELECT actor_id, action, target_type FROM audit_log ORDER BY action`)).rows;
+    expect(rows).toEqual([
+      { actor_id: s.userId, action: 'alert.post', target_type: 'alert' },
+      { actor_id: s.userId, action: 'recipient.enroll', target_type: 'recipient' },
+    ]);
+    const all = JSON.stringify((await pool.query('SELECT * FROM audit_log')).rows);
+    expectNoPhone(all);
+    expect(all).not.toContain('Free hot meals tonight');
+  });
+});

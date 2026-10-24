@@ -1,11 +1,13 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getPool } from '../src/db.js';
 import { postAlert, PostAlertError } from '../src/alerts/post.js';
+import { mkActor } from './helpers.js';
 
 const pool = getPool();
 const NOW = new Date('2026-06-01T12:00:00Z');
 const HOUR = 3_600_000;
 let providerId: string;
+let actorUserId: string;
 let seq = 0;
 
 const verifiedTavily = () => ({
@@ -26,7 +28,7 @@ function mk(o: { tavily?: ReturnType<typeof verifiedTavily>; geo?: { lat: number
   return deps;
 }
 const input = (o: Record<string, unknown> = {}) => ({
-  providerId,
+  providerId, actorUserId,
   serviceType: 'food' as const,
   address: '123 Main St, Brooklyn, NY',
   startsAt: new Date(NOW.getTime() + HOUR),
@@ -45,6 +47,7 @@ const addProvider = async (status: string) =>
 beforeEach(async () => {
   await pool.query('TRUNCATE deliveries, alerts, consents, recipients, provider_users, providers CASCADE');
   providerId = await addProvider('approved');
+  actorUserId = await mkActor(pool);
 });
 afterAll(() => pool.end());
 
@@ -211,3 +214,22 @@ describe('postAlert auto-supersede of stale needs_review alerts', () => {
   });
 });
 
+
+describe('postAlert audit', () => {
+  const audit = async () => (await pool.query(`SELECT actor_id, action, target_type, target_id FROM audit_log WHERE action = 'alert.post'`)).rows;
+
+  it.each([['verified', undefined], ['needs_review', null]] as const)('writes alert.post (ids only) for a %s alert', async (_s, geo) => {
+    const r = await postAlert(mk({ geo }), input());
+    expect(await audit()).toEqual([{ actor_id: actorUserId, action: 'alert.post', target_type: 'alert', target_id: r.alertId }]);
+  });
+  it('an idempotent replay writes no second audit row', async () => {
+    const i = input();
+    await postAlert(mk(), i);
+    await postAlert(mk(), i);
+    expect(await audit()).toHaveLength(1);
+  });
+  it('a failed audit insert leaves no alert row', async () => {
+    await expect(postAlert(mk(), input({ actorUserId: '00000000-0000-4000-8000-000000000000' }))).rejects.toThrow();
+    expect(await count()).toBe(0);
+  });
+});

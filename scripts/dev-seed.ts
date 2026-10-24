@@ -30,10 +30,11 @@ try {
      ON CONFLICT (email) DO NOTHING`,
     [hash],
   );
+  const actorUserId = (await pool.query(`SELECT id FROM provider_users WHERE email = 'admin@example.test'`)).rows[0].id as string;
   const have = (await pool.query('SELECT count(*)::int AS n FROM recipients WHERE enrolled_by_provider_id = $1', [providerId])).rows[0].n as number;
   if (have < 2) {
     for (const [phone, zip] of [['(718) 555-0142', '11216'], ['(212) 555-0187', '10027']]) {
-      await enrollRecipient(pool, { providerId, phone, channel: 'sms', language: 'en', zip, method: 'verbal', scriptConfirmed: true });
+      await enrollRecipient(pool, { providerId, actorUserId, phone, channel: 'sms', language: 'en', zip, method: 'verbal', scriptConfirmed: true });
     }
   }
   console.log('Seeded: Demo Pantry (approved), demo@example.test (staff), admin@example.test (admin), 2 test recipients.');

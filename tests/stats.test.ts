@@ -2,9 +2,11 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alertTotals } from '../src/alerts/stats.js';
 import { getPool } from '../src/db.js';
 import { enrollRecipient } from '../src/recipients/enroll.js';
+import { mkActor } from './helpers.js';
 
 const pool = getPool();
 let seq = 0;
+let actorUserId: string;
 
 const mkProvider = async (name: string) =>
   (await pool.query(`INSERT INTO providers (name, address, contact, status) VALUES ($1, '1 Main St', 'c', 'approved') RETURNING id`, [name])).rows[0].id as string;
@@ -16,7 +18,7 @@ const mkAlert = async (pid: string, message: string, ageMin: number) =>
   )).rows[0].id as string;
 const mkDelivery = async (alertId: string, pid: string, status: string, o: { vonage?: string | null; claimed?: boolean } = {}) => {
   const { recipientId } = await enrollRecipient(pool, {
-    providerId: pid, phone: `(718) 555-${String(100 + seq++).padStart(4, '0')}`, channel: 'sms', language: 'en', zip: '11201', method: 'verbal', scriptConfirmed: true,
+    providerId: pid, actorUserId, phone: `(718) 555-${String(100 + seq++).padStart(4, '0')}`, channel: 'sms', language: 'en', zip: '11201', method: 'verbal', scriptConfirmed: true,
   });
   await pool.query(
     `INSERT INTO deliveries (alert_id, recipient_id, status, vonage_id, claimed_at) VALUES ($1, $2, $3, $4, $5)`,
@@ -26,6 +28,7 @@ const mkDelivery = async (alertId: string, pid: string, status: string, o: { von
 
 beforeEach(async () => {
   await pool.query('TRUNCATE deliveries, alerts, consents, recipients, provider_users, providers CASCADE');
+  actorUserId = await mkActor(pool);
 });
 afterAll(() => pool.end());
 

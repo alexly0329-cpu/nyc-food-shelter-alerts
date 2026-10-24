@@ -2,6 +2,7 @@ import { createHash, createHmac } from 'node:crypto';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getPool } from '../src/db.js';
 import { enrollRecipient } from '../src/recipients/enroll.js';
+import { mkActor } from './helpers.js';
 import { handleInbound, handleStatus, isStopKeyword, verifyVonageSignature } from '../src/webhooks/vonage.js';
 
 const pool = getPool();
@@ -12,13 +13,14 @@ const CONFIRM = "You're unsubscribed from NYC food and shelter alerts. No more m
 const GENERIC = 'NYC food and shelter alerts, up to 1 message a day. Msg&data rates may apply. Reply STOP to opt out.';
 
 let providerId: string;
+let actorUserId: string;
 let seq = 0;
 
 async function mkProvider(name: string, contact: string) {
   return (await pool.query(`INSERT INTO providers (name, address, contact, status) VALUES ($1, '1 Main St', $2, 'approved') RETURNING id`, [name, contact])).rows[0].id as string;
 }
 const enroll = (phone = E164, pid = providerId) =>
-  enrollRecipient(pool, { providerId: pid, phone, channel: 'sms', language: 'en', zip: '11201', method: 'verbal', scriptConfirmed: true }).then((r) => r.recipientId);
+  enrollRecipient(pool, { providerId: pid, actorUserId, phone, channel: 'sms', language: 'en', zip: '11201', method: 'verbal', scriptConfirmed: true }).then((r) => r.recipientId);
 async function addDelivery(recipientId: string, status: string, vonageId: string | null, ageMin = 0) {
   const alertId = (await pool.query(
     `INSERT INTO alerts (provider_id, service_type, address, lat, lng, message, starts_at, ends_at, capacity_cap, idempotency_key)
@@ -37,6 +39,7 @@ const activeConsents = async (id: string) =>
 
 beforeEach(async () => {
   await pool.query('TRUNCATE deliveries, alerts, consents, recipients, providers CASCADE');
+  actorUserId = await mkActor(pool);
   providerId = await mkProvider('Pantry', JSON.stringify({ contactName: 'Pat', phone: '212-555-0123' }));
 });
 afterAll(() => pool.end());

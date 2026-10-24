@@ -76,10 +76,10 @@ export function apiRoutes(app: FastifyInstance, deps: ServerDeps): void {
   });
 
   app.post('/api/enroll', async (req, reply) => {
-    const { providerId } = await provider(req);
+    const { providerId, userId } = await provider(req);
     const body = parse(enrollSchema, req.body);
     try {
-      await enrollRecipient(db, { ...body, providerId } as Parameters<typeof enrollRecipient>[1]);
+      await enrollRecipient(db, { ...body, providerId, actorUserId: userId } as Parameters<typeof enrollRecipient>[1]);
     } catch (e) {
       if (e instanceof EnrollError) throw new HttpError(400, e.code, e.message);
       throw e;
@@ -90,7 +90,7 @@ export function apiRoutes(app: FastifyInstance, deps: ServerDeps): void {
   app.post('/api/optout', async (req) => optOut(db, (await provider(req)).userId, req.body));
 
   app.post('/api/alerts', async (req, reply) => {
-    const { providerId } = await provider(req);
+    const { providerId, userId } = await provider(req);
     const body = parse(alertSchema, req.body);
     const header = req.headers['idempotency-key'];
     const idempotencyKey = body.idempotencyKey ?? (typeof header === 'string' ? header : '');
@@ -98,7 +98,7 @@ export function apiRoutes(app: FastifyInstance, deps: ServerDeps): void {
     try {
       const r = await postAlert(
         { db, tavily: deps.tavily, geocode: deps.geocode, enqueue: deps.enqueue, now: deps.now },
-        { ...body, providerId, idempotencyKey, serviceType: body.serviceType as 'food', startsAt: new Date(body.startsAt), endsAt: new Date(body.endsAt) },
+        { ...body, providerId, actorUserId: userId, idempotencyKey, serviceType: body.serviceType as 'food', startsAt: new Date(body.startsAt), endsAt: new Date(body.endsAt) },
       );
       return reply.code(201).send(r);
     } catch (e) {

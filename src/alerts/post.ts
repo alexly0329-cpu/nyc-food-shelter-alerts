@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import { withTx } from '../db.js';
 import { verifyAlert, type TavilyLike } from '../integrations/tavily.js';
 
 export type PostAlertErrorCode = 'INVALID_INPUT' | 'PROVIDER_NOT_APPROVED';
@@ -20,6 +21,8 @@ export interface PostAlertDeps {
 
 export interface PostAlertInput {
   providerId: string;
+  /** The signed-in staff user; recorded in audit_log. */
+  actorUserId: string;
   serviceType: 'food' | 'shelter';
   address: string;
   startsAt: Date;
@@ -73,22 +76,31 @@ export async function postAlert(deps: PostAlertDeps, input: PostAlertInput): Pro
   });
   const status = geo && v.status === 'verified' ? 'verified' : 'needs_review';
 
-  const ins = await db.query(
-    `INSERT INTO alerts (provider_id, service_type, address, lat, lng, message, starts_at, ends_at,
-                         capacity_cap, urgent, verification_status, idempotency_key)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-     ON CONFLICT (provider_id, idempotency_key) DO NOTHING
-     RETURNING id`,
-    [input.providerId, input.serviceType, input.address, geo?.lat ?? null, geo?.lng ?? null, input.message,
-      input.startsAt, input.endsAt, input.capacityCap, input.urgent, status, input.idempotencyKey],
-  );
-  if (!ins.rows[0]) {
+  // The alert row and its audit row commit together; a replay inserts nothing and audits nothing.
+  const insertedId = await withTx(db, async (c) => {
+    const ins = await c.query(
+      `INSERT INTO alerts (provider_id, service_type, address, lat, lng, message, starts_at, ends_at,
+                           capacity_cap, urgent, verification_status, idempotency_key)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       ON CONFLICT (provider_id, idempotency_key) DO NOTHING
+       RETURNING id`,
+      [input.providerId, input.serviceType, input.address, geo?.lat ?? null, geo?.lng ?? null, input.message,
+        input.startsAt, input.endsAt, input.capacityCap, input.urgent, status, input.idempotencyKey],
+    );
+    if (!ins.rows[0]) return null;
+    await c.query(`INSERT INTO audit_log (actor_id, action, target_type, target_id) VALUES ($1, 'alert.post', 'alert', $2)`, [
+      input.actorUserId,
+      ins.rows[0].id,
+    ]);
+    return ins.rows[0].id as string;
+  });
+  if (!insertedId) {
     // Lost the race: the winner owns the enqueue.
     const winner = await findExisting(db, input.providerId, input.idempotencyKey);
     if (!winner) throw new Error('alert vanished after idempotency conflict');
     return winner;
   }
-  const alertId = ins.rows[0].id as string;
+  const alertId = insertedId;
 
   if (status === 'verified') {
     try {
