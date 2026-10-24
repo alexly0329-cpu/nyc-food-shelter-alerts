@@ -45,6 +45,8 @@ function validate(i: PostAlertInput, now: Date): void {
   if (!validDate(i.startsAt) || !validDate(i.endsAt)) return bad('startsAt and endsAt must be valid dates');
   if (i.endsAt.getTime() <= i.startsAt.getTime()) bad('endsAt must be after startsAt');
   if (i.endsAt.getTime() <= now.getTime()) bad('endsAt must be in the future');
+  // The text carries no date for a far-off start, and the alert is sent immediately.
+  if (i.startsAt.getTime() > now.getTime() + 24 * 3_600_000) bad('startsAt must be within 24 hours');
 }
 
 async function findExisting(db: Pool, providerId: string, key: string): Promise<Result | null> {

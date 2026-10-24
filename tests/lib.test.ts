@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alertStatusLabel, errorMessage, friendlyError, toIso, touchesQuietHours } from '../public/lib.js';
+import { alertStatusLabel, errorMessage, friendlyError, startTooFar, toIso, touchesQuietHours } from '../public/lib.js';
 
 describe('errorMessage', () => {
   const cases: Record<string, string> = {
@@ -60,4 +60,15 @@ describe('touchesQuietHours', () => {
     expect(touchesQuietHours(new Date(NaN), t(1, 1))).toBe(false);
     expect(touchesQuietHours(t(1, 10), t(1, 9))).toBe(false);
   });
+});
+
+describe('startTooFar and the 24h message', () => {
+  const now = new Date('2026-06-01T12:00:00Z');
+  it('rejects beyond 24h only', () => {
+    expect(startTooFar('2026-06-02T12:00:01Z', now)).toBe(true);
+    expect(startTooFar('2026-06-02T11:59:00Z', now)).toBe(false);
+    expect(startTooFar('2026-05-31T12:00:00Z', now)).toBe(false);
+  });
+  it('shows the server message as-is', () =>
+    expect(friendlyError('INVALID_INPUT', 'startsAt must be within 24 hours')).toBe('startsAt must be within 24 hours'));
 });

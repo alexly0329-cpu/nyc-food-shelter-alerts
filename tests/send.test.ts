@@ -85,18 +85,34 @@ afterAll(() => pool.end());
 describe('buildMessageText / voiceLocale', () => {
   const a = { providerName: 'Pantry', message: MSG, address: '1 Main St', startsAt: STARTS };
   it('builds exact sms and voice text', () => {
-    expect(buildMessageText(a, 'sms')).toBe(SMS_TEXT);
-    expect(buildMessageText(a, 'voice')).toBe(VOICE_TEXT('+19175550100'));
+    expect(buildMessageText(a, 'sms', NOW)).toBe(SMS_TEXT);
+    expect(buildMessageText(a, 'voice', NOW)).toBe(VOICE_TEXT('+19175550100'));
   });
   it('voice text without VONAGE_NUMBER points to the enrolling organization', () => {
     delete process.env.VONAGE_NUMBER;
-    expect(buildMessageText(a, 'voice')).toBe(
+    expect(buildMessageText(a, 'voice', NOW)).toBe(
       `Pantry: ${MSG} 1 Main St, 5:00 PM. To stop these calls, ask the organization that enrolled you.`,
     );
   });
   it('formats start time in New York (DST and noon/midnight)', () => {
-    expect(buildMessageText({ ...a, startsAt: new Date('2026-01-15T14:05:00Z') }, 'sms')).toContain(', 9:05 AM.');
-    expect(buildMessageText({ ...a, startsAt: new Date('2026-06-01T16:00:00Z') }, 'sms')).toContain(', 12:00 PM.');
+    const jan = new Date('2026-01-15T14:05:00Z');
+    expect(buildMessageText({ ...a, startsAt: jan }, 'sms', jan)).toContain(', 9:05 AM.');
+    expect(buildMessageText({ ...a, startsAt: new Date('2026-06-01T16:00:00Z') }, 'sms', NOW)).toContain(', 12:00 PM.');
+  });
+  it('adds weekday when the start is not the same New York day as the send time', () => {
+    const next = { ...a, startsAt: new Date('2026-06-02T21:00:00Z') }; // Tue 5:00 PM ET
+    expect(buildMessageText(next, 'sms', NOW)).toBe(`Pantry: ${MSG} 1 Main St, Tue 5:00 PM. Reply STOP to opt out.`);
+    expect(buildMessageText(next, 'voice', NOW)).toBe(VOICE_TEXT('+19175550100').replace(', 5:00 PM.', ', Tue 5:00 PM.'));
+    expect(buildMessageText(a, 'sms', NOW)).toBe(SMS_TEXT);
+  });
+  it('day comparison is New York calendar day, not UTC (11 PM ET send, 12:30 AM ET start)', () => {
+    const t = buildMessageText({ ...a, startsAt: new Date('2026-06-02T04:30:00Z') }, 'sms', new Date('2026-06-02T03:00:00Z'));
+    expect(t).toContain(', Tue 12:30 AM.'); // send Mon 11 PM ET, start Tue 12:30 AM ET: different ET day, same UTC day
+  });
+  it('DST spring-forward day: same-day start keeps bare time, next day gets weekday', () => {
+    const send = new Date('2026-03-08T12:00:00Z'); // Sun 8 AM EDT (clocks changed 2 AM)
+    expect(buildMessageText({ ...a, startsAt: new Date('2026-03-08T21:00:00Z') }, 'sms', send)).toContain(', 5:00 PM.');
+    expect(buildMessageText({ ...a, startsAt: new Date('2026-03-09T09:00:00Z') }, 'sms', send)).toContain(', Mon 5:00 AM.');
   });
   it('maps languages to TTS locales with en-US fallback', () => {
     expect(['English', 'Español', '中文', 'Русский', 'en', 'es', 'zh', 'ru', 'Klingon', ''].map(voiceLocale)).toEqual([

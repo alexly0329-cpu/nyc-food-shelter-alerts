@@ -1,4 +1,4 @@
-import { alertStatusLabel, errorMessage, friendlyError, toIso, touchesQuietHours } from '/lib.js';
+import { alertStatusLabel, errorMessage, friendlyError, startTooFar, toIso, touchesQuietHours } from '/lib.js';
 
 const $ = (s) => document.querySelector(s);
 const views = ['login', 'apply', 'alerts', 'new', 'enroll'];
@@ -200,7 +200,7 @@ function paint() {
   const m = $('#msg').value;
   $('#count').textContent = `${m.length} of 100 characters`;
   const t = new Date($('#start').value);
-  const time = isNaN(t) ? '' : t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const time = isNaN(t) ? '' : t.toLocaleString('en-US', { ...(t.toDateString() === new Date().toDateString() ? {} : { weekday: 'short' }), hour: 'numeric', minute: '2-digit' }).replace(',', '');
   const e = new Date($('#end').value);
   $('#quiet').hidden = $('#urgent').checked || !touchesQuietHours(t, e);
   $('#bubble').textContent = `${me?.providerName ?? ''}: ${m} ${$('#addr').value}, ${time}. Reply STOP to opt out.`;
@@ -216,6 +216,7 @@ $('#alertForm').addEventListener('submit', async (e) => {
   if (!startsAt || !endsAt) return showErr('#alertErr', 'Pick a start and end time.');
   if (endsAt <= startsAt) return showErr('#alertErr', 'The end time must be after the start time.');
   if (new Date(endsAt) <= new Date()) return showErr('#alertErr', 'The end time must be in the future.');
+  if (startTooFar(startsAt)) return showErr('#alertErr', 'The start time must be within the next 24 hours.');
   const btn = $('#alertBtn');
   btn.disabled = true;
   const r = await api('POST', '/api/alerts', {

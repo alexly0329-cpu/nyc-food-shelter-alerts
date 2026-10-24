@@ -19,6 +19,7 @@ export function errorMessage(code) {
 const SAFE_SERVER_TEXT = new Set([
   'endsAt must be after startsAt',
   'endsAt must be in the future',
+  'startsAt must be within 24 hours',
   'startsAt and endsAt must be valid dates',
   'message must be 1-100 characters',
   'capacityCap must be an integer 5-500',
@@ -53,4 +54,9 @@ export function alertStatusLabel(a) {
 export function toIso(v) {
   const d = new Date(v);
   return v && !isNaN(d) ? d.toISOString() : '';
+}
+
+/** True when the start is more than 24 hours after `now` (mirrors the server rule). */
+export function startTooFar(startIso, now = new Date()) {
+  return new Date(startIso).getTime() > now.getTime() + 24 * 3600 * 1000;
 }

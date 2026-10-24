@@ -75,6 +75,20 @@ describe('postAlert validation', () => {
       await expect(postAlert(mk(), input(o))).resolves.toMatchObject({ status: 'verified' });
     }
   });
+  it('rejects startsAt more than 24 hours ahead with a static message', async () => {
+    const deps = mk();
+    const startsAt = new Date(NOW.getTime() + 25 * HOUR);
+    await expect(postAlert(deps, input({ startsAt, endsAt: new Date(startsAt.getTime() + HOUR) }))).rejects.toMatchObject({
+      code: 'INVALID_INPUT', message: 'startsAt must be within 24 hours',
+    });
+    expect(await count()).toBe(0);
+    expect(deps.enqueue).not.toHaveBeenCalled();
+  });
+  it('accepts startsAt 23 hours ahead and a startsAt in the past', async () => {
+    const ahead = new Date(NOW.getTime() + 23 * HOUR);
+    await expect(postAlert(mk(), input({ startsAt: ahead, endsAt: new Date(ahead.getTime() + HOUR) }))).resolves.toMatchObject({ status: 'verified' });
+    await expect(postAlert(mk(), input({ startsAt: new Date(NOW.getTime() - HOUR) }))).resolves.toMatchObject({ status: 'verified' });
+  });
   it('error is a PostAlertError', async () => {
     await expect(postAlert(mk(), input({ capacityCap: 4 }))).rejects.toBeInstanceOf(PostAlertError);
   });

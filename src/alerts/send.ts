@@ -27,11 +27,20 @@ function startTime(d: Date): string {
   return `${p.hour}:${p.minute} ${p.dayPeriod}`;
 }
 
+const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
+const weekdayFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short' });
+
+/** `5:00 PM`, or `Fri 5:00 PM` when the start is not on the same New York calendar day as `sentAt`. */
+function startLabel(start: Date, sentAt: Date): string {
+  const t = startTime(start);
+  return dayFmt.format(start) === dayFmt.format(sentAt) ? t : `${weekdayFmt.format(start)} ${t}`;
+}
+
 export interface AlertText { providerName: string; message: string; address: string; startsAt: Date }
 
 /** The message is sent exactly as the provider wrote it; only the opt-out sentence differs by channel. */
-export function buildMessageText(a: AlertText, channel: 'sms' | 'voice'): string {
-  const body = `${a.providerName}: ${a.message} ${a.address}, ${startTime(a.startsAt)}.`;
+export function buildMessageText(a: AlertText, channel: 'sms' | 'voice', sentAt: Date = new Date()): string {
+  const body = `${a.providerName}: ${a.message} ${a.address}, ${startLabel(a.startsAt, sentAt)}.`;
   if (channel === 'sms') return `${body} Reply STOP to opt out.`;
   const number = process.env.VONAGE_NUMBER;
   return number
@@ -115,7 +124,7 @@ export async function runSendJob(deps: SendJobDeps, alertId: string): Promise<vo
   );
   const delayMs = Math.ceil(1000 / config.VONAGE_RATE_PER_SECOND);
   const text = (channel: 'sms' | 'voice') =>
-    buildMessageText({ providerName: alert.provider_name, message: alert.message, address: alert.address, startsAt: alert.starts_at }, channel);
+    buildMessageText({ providerName: alert.provider_name, message: alert.message, address: alert.address, startsAt: alert.starts_at }, channel, deps.now());
 
   for (const row of unsent.rows) {
     if (deps.now().getTime() >= alert.ends_at.getTime()) {
