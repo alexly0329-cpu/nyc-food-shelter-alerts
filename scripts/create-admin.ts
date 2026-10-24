@@ -8,12 +8,13 @@ if (!email || !password) {
 }
 
 // Imported after the checks so a refused run never touches config or the database.
-const { getPool } = await import('../src/db.js');
+const { getPool, migrate } = await import('../src/db.js');
 const { createAdmin } = await import('../src/auth/users.js');
 
 const pool = getPool();
 let code = 0;
 try {
+  await migrate(pool); // a fresh database has no tables until the first server start; migrations are idempotent
   await createAdmin(pool, email, password);
   console.log(`Created admin ${email.trim().toLowerCase()}.`);
 } catch (e) {
