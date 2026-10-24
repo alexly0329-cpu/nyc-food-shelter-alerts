@@ -98,6 +98,16 @@ export async function postAlert(deps: PostAlertDeps, input: PostAlertInput): Pro
       await db.query("UPDATE alerts SET verification_status = 'needs_review' WHERE id = $1", [alertId]);
       throw e;
     }
+    // Best effort: a stale held duplicate must not be approvable after this repost.
+    try {
+      await db.query(
+        `UPDATE alerts SET verification_status = 'rejected'
+          WHERE provider_id = $1 AND id <> $2 AND verification_status = 'needs_review'
+            AND lower(btrim(address)) = lower(btrim($3::text))
+            AND starts_at < $5::timestamptz AND ends_at > $4::timestamptz`,
+        [input.providerId, alertId, input.address, input.startsAt, input.endsAt],
+      );
+    } catch { /* never fail the post over cleanup */ }
   }
   return { alertId, status };
 }

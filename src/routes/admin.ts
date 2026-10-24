@@ -93,4 +93,23 @@ export function adminRoutes(app: FastifyInstance, deps: ServerDeps): void {
     }
     return { ok: true };
   });
+
+  app.post('/api/admin/alerts/:id/reject', async (req) => {
+    const { userId } = await admin(req);
+    const { id } = parse(idParams, req.params);
+    const won = await withTx(db, async (c) => {
+      const u = await c.query(
+        `UPDATE alerts SET verification_status = 'rejected' WHERE id = $1 AND verification_status = 'needs_review' RETURNING id`,
+        [id],
+      );
+      if (!u.rowCount) return false;
+      await c.query(`INSERT INTO audit_log (actor_id, action, target_type, target_id) VALUES ($1, 'alert.reject', 'alert', $2)`, [userId, id]);
+      return true;
+    });
+    if (!won) {
+      const exists = await db.query('SELECT 1 FROM alerts WHERE id = $1', [id]);
+      throw exists.rowCount ? new HttpError(409, 'not_needs_review') : new HttpError(404, 'not_found');
+    }
+    return { ok: true };
+  });
 }

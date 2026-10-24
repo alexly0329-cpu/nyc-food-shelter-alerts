@@ -166,3 +166,48 @@ describe('postAlert', () => {
     expect(rows).toEqual([{ verification_status: 'needs_review' }]);
   });
 });
+
+describe('postAlert auto-supersede of stale needs_review alerts', () => {
+  const old = async (pid: string, o: { address?: string; startH?: number; endH?: number; status?: string } = {}) =>
+    (await pool.query(
+      `INSERT INTO alerts (provider_id, service_type, address, lat, lng, message, starts_at, ends_at, capacity_cap, idempotency_key, verification_status)
+       VALUES ($1, 'food', $2, 40.7, -74, 'm', $3, $4, 10, $5, $6) RETURNING id`,
+      [pid, o.address ?? '123 Main St, Brooklyn, NY', new Date(NOW.getTime() + (o.startH ?? 2) * HOUR),
+        new Date(NOW.getTime() + (o.endH ?? 4) * HOUR), `old${seq++}`, o.status ?? 'needs_review'],
+    )).rows[0].id as string;
+  const st = async (id: string) => (await pool.query('SELECT verification_status FROM alerts WHERE id = $1', [id])).rows[0].verification_status as string;
+
+  it('rejects the same provider\'s overlapping same-address needs_review alert (case/space-insensitive)', async () => {
+    const stale = await old(providerId, { address: '  123 main st, BROOKLYN, ny ' });
+    await postAlert(mk(), input());
+    expect(await st(stale)).toBe('rejected');
+  });
+  it('leaves other address, non-overlapping window, adjacent window, other provider and non-held alerts untouched', async () => {
+    const other = await addProvider('approved');
+    const ids = {
+      addr: await old(providerId, { address: '9 Other St, Brooklyn, NY' }),
+      later: await old(providerId, { startH: 4, endH: 5 }),
+      adjacent: await old(providerId, { startH: -1, endH: 1 }), // ends exactly when the new one starts
+      otherProv: await old(other),
+      verified: await old(providerId, { status: 'verified' }),
+    };
+    await postAlert(mk(), input());
+    for (const [k, id] of Object.entries(ids)) expect(await st(id), k).toBe(k === 'verified' ? 'verified' : 'needs_review');
+  });
+  it('a new needs_review alert supersedes nothing', async () => {
+    const stale = await old(providerId);
+    await postAlert(mk({ tavily: emptyTavily() }), input());
+    expect(await st(stale)).toBe('needs_review');
+  });
+  it('a cleanup failure never fails the post', async () => {
+    const stale = await old(providerId);
+    const real = pool.query.bind(pool);
+    const spy = vi.spyOn(pool, 'query').mockImplementation(((q: unknown, ...rest: unknown[]) =>
+      typeof q === 'string' && q.includes("SET verification_status = 'rejected'") ? Promise.reject(new Error('boom')) : (real as (...a: unknown[]) => unknown)(q, ...rest)) as never);
+    try {
+      await expect(postAlert(mk(), input())).resolves.toMatchObject({ status: 'verified' });
+    } finally { spy.mockRestore(); }
+    expect(await st(stale)).toBe('needs_review');
+  });
+});
+

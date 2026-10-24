@@ -296,7 +296,7 @@ describe('admin', () => {
     const id = '00000000-0000-4000-8000-000000000000';
     for (const [method, url] of [
       ['GET', '/api/admin/providers'], ['POST', `/api/admin/providers/${id}/approve`], ['POST', `/api/admin/providers/${id}/suspend`],
-      ['GET', '/api/admin/alerts'], ['POST', `/api/admin/alerts/${id}/approve`],
+      ['GET', '/api/admin/alerts'], ['POST', `/api/admin/alerts/${id}/approve`], ['POST', `/api/admin/alerts/${id}/reject`],
     ] as const) {
       const r = await app.inject({ method, url, payload: method === 'POST' ? '{}' : undefined, headers: { ...json, cookie: s.cookie } });
       expect(r.statusCode, url).toBe(403);
@@ -343,6 +343,30 @@ describe('admin', () => {
     expect(enqueue.mock.calls[0][0]).toBe(id);
     expect((await pool.query('SELECT verification_status FROM alerts WHERE id = $1', [id])).rows[0].verification_status).toBe('verified');
     expect((await pool.query(`SELECT actor_id FROM audit_log WHERE action = 'alert.approve' AND target_id = $1`, [id])).rows[0].actor_id).toBe(a.id);
+  });
+
+  it('reject: needs_review becomes rejected with an audit row, never enqueues; double reject 409; unknown 404; cannot then be approved', async () => {
+    const a = await admin();
+    const p = await mkProvider('approved');
+    const id = await mkNeedsReview(p.providerId, true);
+    const r1 = await post(`/api/admin/alerts/${id}/reject`, {}, a.cookie);
+    expect(r1.statusCode).toBe(200);
+    expect((await pool.query('SELECT verification_status FROM alerts WHERE id = $1', [id])).rows[0].verification_status).toBe('rejected');
+    expect((await pool.query(`SELECT actor_id FROM audit_log WHERE action = 'alert.reject' AND target_id = $1`, [id])).rows.map((x) => x.actor_id)).toEqual([a.id]);
+    expect((await post(`/api/admin/alerts/${id}/reject`, {}, a.cookie)).statusCode).toBe(409);
+    expect((await post(`/api/admin/alerts/${id}/approve`, {}, a.cookie)).statusCode).toBe(409);
+    expect((await post('/api/admin/alerts/00000000-0000-4000-8000-000000000000/reject', {}, a.cookie)).statusCode).toBe(404);
+    expect((await post('/api/admin/alerts/not-a-uuid/reject', {}, a.cookie)).statusCode).toBe(400);
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it('reject refuses an already verified alert (409) and leaves it verified', async () => {
+    const a = await admin();
+    const p = await mkProvider('approved');
+    const id = await mkNeedsReview(p.providerId, true);
+    await pool.query(`UPDATE alerts SET verification_status = 'verified' WHERE id = $1`, [id]);
+    expect((await post(`/api/admin/alerts/${id}/reject`, {}, a.cookie)).statusCode).toBe(409);
+    expect((await pool.query('SELECT verification_status FROM alerts WHERE id = $1', [id])).rows[0].verification_status).toBe('verified');
   });
 
   it('suspended provider: alert approve is 409 provider_not_approved, nothing enqueued; list shows status', async () => {
