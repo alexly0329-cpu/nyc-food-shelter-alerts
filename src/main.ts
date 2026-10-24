@@ -4,6 +4,13 @@ import { createTavilyClient } from './integrations/tavily.js';
 import { getPool, migrate } from './db.js';
 import { createQueue } from './queue.js';
 import { buildServer } from './server.js';
+import { missingProductionEnv } from './main-env.js';
+
+const missing = missingProductionEnv(process.env);
+if (missing.length) {
+  console.error(`Refusing to start: missing required env vars: ${missing.join(', ')}`);
+  process.exit(1);
+}
 
 if (!process.env.VONAGE_SIGNATURE_SECRET) {
   console.warn('WARNING: VONAGE_SIGNATURE_SECRET is not set; every Vonage webhook will be rejected (401), so STOP replies will not be processed.');

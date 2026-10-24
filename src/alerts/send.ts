@@ -17,6 +17,8 @@ export interface SendJobDeps {
   enqueue: (alertId: string, runAt: Date) => Promise<void>;
   now: () => Date;
   sleep?: (ms: number) => Promise<void>;
+  /** Per-call limit on Vonage requests (default 10 000 ms). */
+  sendTimeoutMs?: number;
 }
 
 const timeFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true });
@@ -59,11 +61,19 @@ export const voiceLocale = (language: string): string => LOCALES[language] ?? 'e
 // queued rows are invisible to the 24h exclusion, so two alerts could otherwise pick the same person.
 const SELECT_LOCK = 7283002;
 
+class SendTimeout extends Error {}
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: NodeJS.Timeout;
+  const t = new Promise<never>((_, rej) => { timer = setTimeout(() => rej(new SendTimeout()), ms); });
+  return Promise.race([p, t]).finally(() => clearTimeout(timer));
+}
+
 const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export async function runSendJob(deps: SendJobDeps, alertId: string): Promise<void> {
   const { db, sender } = deps;
   const sleep = deps.sleep ?? defaultSleep;
+  const sendTimeoutMs = deps.sendTimeoutMs ?? 10_000;
 
   const found = await db.query(
     `SELECT a.address, a.message, a.starts_at, a.ends_at, a.urgent, a.capacity_cap, a.lat, a.lng,
@@ -131,16 +141,24 @@ export async function runSendJob(deps: SendJobDeps, alertId: string): Promise<vo
       await failUnsent();
       break;
     }
-    // Claim and consent re-check in one statement: a STOP that lands after selection always wins.
+    // Claim, provider-approved and consent re-check in one statement: a STOP or suspension after selection always wins.
     const claimed = await db.query(
       `UPDATE deliveries SET claimed_at = $2
        WHERE id = $1 AND claimed_at IS NULL AND vonage_id IS NULL AND status = 'queued'
+         AND EXISTS (SELECT 1 FROM alerts a JOIN providers p ON p.id = a.provider_id
+           WHERE a.id = deliveries.alert_id AND p.status = 'approved')
          AND EXISTS (SELECT 1 FROM recipients r WHERE r.id = deliveries.recipient_id AND r.status = 'active'
            AND EXISTS (SELECT 1 FROM consents c WHERE c.recipient_id = r.id AND c.revoked_at IS NULL))
        RETURNING id`,
       [row.id, deps.now()],
     );
     if (!claimed.rowCount) {
+      const prov = await db.query('SELECT p.status FROM alerts a JOIN providers p ON p.id = a.provider_id WHERE a.id = $1', [alertId]);
+      if (prov.rows[0]?.status !== 'approved') {
+        // Suspended mid-run: leave this and all later rows queued and unclaimed; message nobody else.
+        await db.query("UPDATE alerts SET send_state = 'expired' WHERE id = $1 AND send_state IN ('pending', 'sending')", [alertId]);
+        return;
+      }
       // Not claimable: stopped recipient (mark it) or another run owns it (no-op: the guards fail).
       await db.query(
         "UPDATE deliveries SET status = 'stopped' WHERE id = $1 AND status = 'queued' AND vonage_id IS NULL AND claimed_at IS NULL",
@@ -150,15 +168,20 @@ export async function runSendJob(deps: SendJobDeps, alertId: string): Promise<vo
     }
 
     let id: string | undefined;
+    let timedOut = false;
     try {
       const to = decryptPhone(row.phone);
-      id = (row.channel === 'voice'
-        ? await sender.startCall(to, text('voice'), voiceLocale(row.language))
-        : await sender.sendSms(to, text('sms'))).id;
-    } catch {
+      id = (await withTimeout(row.channel === 'voice'
+        ? sender.startCall(to, text('voice'), voiceLocale(row.language))
+        : sender.sendSms(to, text('sms')), sendTimeoutMs)).id;
+    } catch (e) {
       // Deliberately no error text: it could carry the number or message body.
+      timedOut = e instanceof SendTimeout;
     }
-    if (id === undefined) {
+    if (timedOut) {
+      // Outcome unknown: the row stays claimed with no vonage_id. Never failed, never resent.
+      logEvent('send_failed', { alertId, deliveryId: row.id, channel: row.channel, reason: 'timeout' });
+    } else if (id === undefined) {
       await db.query("UPDATE deliveries SET status = 'failed' WHERE id = $1 AND status = 'queued'", [row.id]);
       logEvent('send_failed', { alertId, deliveryId: row.id, channel: row.channel });
     } else {

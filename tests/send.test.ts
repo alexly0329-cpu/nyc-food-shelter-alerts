@@ -409,6 +409,51 @@ describe('runSendJob', () => {
     expect((await deliveries(id)).filter((r) => r.status === 'stopped')).toHaveLength(1);
   });
 
+  it('a hung Vonage call times out: row stays claimed with no id, not failed, not resent, next recipient still sent', async () => {
+    const a = await addRecipient(40.71);
+    const b = await addRecipient(40.72);
+    const id = await addAlert();
+    const out: string[] = [];
+    const spy = vi.spyOn(process.stdout, 'write').mockImplementation(((c: unknown) => { out.push(String(c)); return true; }) as never);
+    const f = fakeSender((c) => (c.to === a.phone ? new Promise<void>(() => {}) : undefined));
+    try {
+      await runSendJob({ ...mk(f.sender), sendTimeoutMs: 20 }, id);
+    } finally { spy.mockRestore(); }
+    expect(f.calls.map((c) => c.to).sort()).toEqual([a.phone, b.phone].sort()); // order within one alert is by random id
+    const rows = await pool.query(
+      'SELECT recipient_id, status, vonage_id, claimed_at FROM deliveries WHERE alert_id = $1', [id]);
+    const ra = rows.rows.find((r) => r.recipient_id === a.id);
+    expect(ra).toMatchObject({ status: 'queued', vonage_id: null });
+    expect(ra.claimed_at).not.toBeNull();
+    expect(rows.rows.find((r) => r.recipient_id === b.id).vonage_id).toMatch(/^sms-/);
+    const events = out.map((l) => JSON.parse(l));
+    expect(events).toEqual([expect.objectContaining({ event: 'send_failed', reason: 'timeout', channel: 'sms', alertId: id })]);
+    expect(out.join('')).not.toContain(a.phone);
+    // a second run must not resend the unknown-outcome row
+    await runSendJob({ ...mk(f.sender), sendTimeoutMs: 20 }, id);
+    expect(f.calls).toHaveLength(2);
+  });
+
+  it('a provider suspended between two sends stops the run: rest left queued, alert expired', async () => {
+    await addRecipient(40.71);
+    await addRecipient(40.72);
+    await addRecipient(40.73);
+    const id = await addAlert();
+    const f = fakeSender();
+    let done = false;
+    await runSendJob({ ...mk(f.sender), sleep: async () => {
+      if (done) return;
+      done = true;
+      await pool.query(`UPDATE providers SET status = 'suspended' WHERE id = $1`, [providerId]);
+    } }, id);
+    expect(f.calls).toHaveLength(1);
+    expect((await state(id)).send_state).toBe('expired');
+    const rows = await deliveries(id);
+    expect(rows.filter((r) => r.status === 'queued' && r.vonage_id === null)).toHaveLength(2);
+    expect(rows.filter((r) => r.status === 'stopped' || r.status === 'failed')).toHaveLength(0);
+    expect((await pool.query('SELECT count(*)::int AS n FROM deliveries WHERE alert_id = $1 AND claimed_at IS NOT NULL', [id])).rows[0].n).toBe(1);
+  });
+
   it('logs no phone numbers or message bodies', async () => {
     const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
     const a = await addRecipient(40.71);
