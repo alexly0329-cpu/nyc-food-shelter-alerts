@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { logEvent } from '../ops/log.js';
 import { handleInbound, handleStatus, verifyVonageSignature } from '../webhooks/vonage.js';
 import { HttpError, type ServerDeps } from './util.js';
 
@@ -10,8 +11,14 @@ export function webhookRoutes(app: FastifyInstance, deps: ServerDeps): void {
     const secret = deps.signatureSecret();
     const token = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1];
     if (!secret || !token || !verifyVonageSignature(req.rawBody ?? '', token, secret, deps.now())) {
+      logEvent('webhook_rejected', { route: req.routeOptions?.url ?? 'unknown', reason: 'invalid_signature' });
       throw new HttpError(401, 'invalid_signature');
     }
+  });
+
+  // Unexpected exceptions only (HttpError is a deliberate client error). Error name, never its message.
+  app.addHook('onError', async (req, _reply, err) => {
+    if (!(err instanceof HttpError)) logEvent('webhook_error', { route: req.routeOptions?.url ?? 'unknown', reason: err.name });
   });
 
   app.post('/webhooks/vonage/inbound', async (req) => {

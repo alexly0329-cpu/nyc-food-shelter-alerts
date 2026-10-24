@@ -2,6 +2,7 @@ import { PgBoss } from 'pg-boss';
 import type { Pool } from 'pg';
 import { runSendJob, type SendJobDeps, type Sender } from './alerts/send.js';
 import { config } from './config.js';
+import { logEvent } from './ops/log.js';
 
 const QUEUE = 'send-alert';
 
@@ -27,7 +28,7 @@ export function createQueue(deps: QueueDeps, boss: BossLike = new PgBoss(config.
     // A retry is safe: runSendJob is idempotent (claim columns, at-most-once per delivery).
     await boss.send(QUEUE, { alertId }, { startAfter: runAt, retryLimit: 3, retryDelay: 30, retryBackoff: true });
   };
-  boss.on('error', (e) => console.error('pg-boss error:', e.message));
+  boss.on('error', (e) => logEvent('queue_error', { reason: e.message }));
   return {
     enqueue,
     async start() {
@@ -35,7 +36,12 @@ export function createQueue(deps: QueueDeps, boss: BossLike = new PgBoss(config.
       await boss.createQueue(QUEUE); // idempotent; required before send/work
       await boss.work(QUEUE, { localConcurrency: 1 }, async (jobs) => {
         for (const j of jobs) {
-          await runSendJob({ db: deps.pool, sender: deps.sender, enqueue, now: deps.now ?? (() => new Date()), sleep: deps.sleep }, j.data.alertId);
+          try {
+            await runSendJob({ db: deps.pool, sender: deps.sender, enqueue, now: deps.now ?? (() => new Date()), sleep: deps.sleep }, j.data.alertId);
+          } catch (e) {
+            logEvent('queue_error', { alertId: j.data.alertId, reason: e instanceof Error ? e.message : 'unknown' });
+            throw e; // pg-boss retries
+          }
         }
       });
     },
