@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { AuthError } from './auth/session.js';
 import { adminRoutes } from './routes/admin.js';
@@ -6,6 +8,9 @@ import { HttpError, type ServerDeps } from './routes/util.js';
 import { webhookRoutes } from './routes/webhooks.js';
 
 export type { ServerDeps };
+
+const CSP =
+  "default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'";
 
 export function buildServer(deps: ServerDeps): FastifyInstance {
   const app = Fastify({
@@ -30,7 +35,13 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
   app.addHook('onRequest', async (req, reply) => {
     // Match on the routed path: the router decodes the URL, so `/%61pi/...` reaches /api routes.
-    if (!req.routeOptions?.url?.startsWith('/api/')) return;
+    if (!req.routeOptions?.url?.startsWith('/api/')) {
+      if (!req.routeOptions?.url?.startsWith('/webhooks/')) {
+        reply.header('content-security-policy', CSP).header('x-content-type-options', 'nosniff')
+          .header('x-frame-options', 'DENY').header('referrer-policy', 'no-referrer');
+      }
+      return;
+    }
     reply.header('x-content-type-options', 'nosniff').header('cache-control', 'no-store');
     // Simple CSRF defense next to SameSite=Lax: a cross-site form cannot send this content type.
     if (req.method === 'POST' && !/^application\/json\b/i.test(req.headers['content-type'] ?? '')) {
@@ -51,5 +62,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   apiRoutes(app, deps);
   adminRoutes(app, deps);
   app.register(async (hooks) => webhookRoutes(hooks, deps));
+  // Registered last: only GET/HEAD for files under public/; unknown paths fall through to the JSON 404.
+  app.register(fastifyStatic, { root: fileURLToPath(new URL('../public/', import.meta.url)) });
   return app;
 }

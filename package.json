@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "seed:dev": "tsx scripts/dev-seed.ts",
     "db:up": "docker compose up -d --wait",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
@@ -12,6 +13,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@fastify/static": "^10.1.7",
     "@node-rs/argon2": "^2.2.2",
     "@tavily/core": "^0.7.14",
     "@vonage/server-sdk": "^3.30.1",

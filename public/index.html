@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NYC food and shelter alerts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..900&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<nav class="main" id="nav" aria-label="Main" hidden>
+  <div class="who"><b id="orgName"></b>Signed in</div>
+  <a href="#alerts" data-v="alerts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 17h14l-2-3v-4a5 5 0 0 0-10 0v4zM10 20h4"/></svg>Alerts</a>
+  <a href="#new" data-v="new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New alert</a>
+  <a href="#enroll" data-v="enroll"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="10" cy="8" r="3.5"/><path d="M3 20c0-4 3-6 7-6s7 2 7 6M19 8v6M16 11h6"/></svg>Enroll</a>
+  <button class="signout" type="button" id="signout"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9"/></svg>Sign out</button>
+</nav>
+
+<!-- LOGIN -->
+<main class="view login" id="v-login">
+  <span class="sign">NYC food + shelter alerts</span>
+  <h1 tabindex="-1">Sign in</h1>
+  <p class="lede">For approved food banks and shelters only.</p>
+  <form id="loginForm">
+    <div><label for="email">Work email</label><input id="email" type="email" autocomplete="username" required></div>
+    <div><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required></div>
+    <p class="err" id="loginErr" role="alert" tabindex="-1" hidden></p>
+    <button class="btn" type="submit" id="loginBtn">Sign in</button>
+    <p class="hint">No account yet? <a class="apply-link" href="#apply">Apply to join the network</a>. A person reviews every application.</p>
+  </form>
+</main>
+
+<!-- APPLY -->
+<main class="view login" id="v-apply">
+  <span class="sign">NYC food + shelter alerts</span>
+  <h1 tabindex="-1">Apply to join</h1>
+  <p class="lede">For food banks and shelters in New York City. A person reviews every application.</p>
+  <form id="applyForm">
+    <div><label for="aName">Organization name</label><input id="aName" type="text" autocomplete="organization" required></div>
+    <div><label for="aAddr">Street address</label><input id="aAddr" type="text" autocomplete="street-address" required></div>
+    <div><label for="aContact">Contact person</label><input id="aContact" type="text" autocomplete="name" required></div>
+    <div><label for="aPhone">Phone</label><input id="aPhone" type="tel" inputmode="tel" autocomplete="tel" required></div>
+    <div><label for="aWeb">Website (optional)</label><input id="aWeb" type="text" inputmode="url" autocomplete="url"></div>
+    <div><label for="aEmail">Work email</label><input id="aEmail" type="email" autocomplete="username" required></div>
+    <div><label for="aPw">Password</label><p class="hint" id="aPwHint">At least 10 characters.</p><input id="aPw" type="password" autocomplete="new-password" minlength="10" aria-describedby="aPwHint" required></div>
+    <p class="err" id="applyErr" role="alert" tabindex="-1" hidden></p>
+    <p class="banner" id="applyOk" role="status" hidden>Application received. A person reviews every application. Sign in any time to check your status.</p>
+    <button class="btn" type="submit" id="applyBtn">Send application</button>
+    <p class="hint"><a class="apply-link" href="#login">Back to sign in</a></p>
+  </form>
+</main>
+
+<!-- ALERTS -->
+<main class="view" id="v-alerts">
+  <h1 tabindex="-1">Your alerts</h1>
+  <p class="lede">You see totals only. Recipient phone numbers stay private.</p>
+  <p class="banner" id="statusBanner" role="status" hidden></p>
+  <p class="banner" id="adminNote" hidden>Admin accounts approve providers and held alerts through the API for now.</p>
+  <div class="list" id="alertList" aria-live="polite"></div>
+</main>
+
+<!-- NEW ALERT -->
+<main class="view" id="v-new">
+  <h1 tabindex="-1">New alert</h1>
+  <p class="lede">We send to the nearest people first and stop at your cap.</p>
+  <form id="alertForm">
+    <fieldset>
+      <div class="legend">What are you offering?</div>
+      <div class="choices">
+        <label class="choice"><input type="radio" name="svc" value="food" checked><span>Food</span></label>
+        <label class="choice"><input type="radio" name="svc" value="shelter"><span>Shelter</span></label>
+      </div>
+    </fieldset>
+    <div><label for="addr">Street address</label><input id="addr" type="text" autocomplete="street-address" required></div>
+    <div class="row2">
+      <div><label for="start">Starts</label><input id="start" type="datetime-local" required></div>
+      <div><label for="end">Ends</label><input id="end" type="datetime-local" required></div>
+    </div>
+    <div>
+      <label for="msg">Message</label>
+      <p class="hint" id="count">0 of 100 characters</p>
+      <textarea id="msg" maxlength="100" aria-describedby="count" required></textarea>
+    </div>
+    <div class="cap">
+      <div class="legend" id="capL">How many people can you serve?</div>
+      <div class="stepper" role="group" aria-labelledby="capL">
+        <button type="button" id="minus" aria-label="Fewer people">−</button>
+        <output id="capN" aria-live="polite">60</output>
+        <button type="button" id="plus" aria-label="More people">+</button>
+      </div>
+      <div class="bar" aria-hidden="true"><i id="fill"></i></div>
+      <p id="capT" class="no-margin"></p>
+    </div>
+    <div class="checkrow">
+      <input type="checkbox" id="urgent">
+      <label for="urgent">Urgent. Send even during quiet hours (9 pm to 8 am).</label>
+    </div>
+    <div class="preview-wrap">
+      <div class="phone" role="group" aria-label="Message preview">
+        <small>What people will receive</small>
+        <div class="bubble" id="bubble"></div>
+      </div>
+      <div class="stack">
+        <p class="note">We check the address and hours before sending. If we can't confirm them, nothing goes out and you'll see why.</p>
+        <p class="note warn" id="quiet" hidden>This runs into quiet hours (9 pm to 8 am). Most people won't be messaged unless you mark it urgent.</p>
+      </div>
+    </div>
+    <p class="err" id="alertErr" role="alert" tabindex="-1" hidden></p>
+    <button class="btn" type="submit" id="alertBtn">Send alert</button>
+  </form>
+</main>
+
+<!-- ENROLL -->
+<main class="view" id="v-enroll">
+  <h1 tabindex="-1">Enroll a person</h1>
+  <p class="lede">Read the note below out loud first. They must say yes before you add their number.</p>
+  <form id="enrollForm" autocomplete="off">
+    <div class="script" role="group" aria-label="Consent script, read aloud">
+      <p class="stage">Read this to the person:</p>
+      <p>“With your OK, we’ll send you text messages or phone calls about free food and shelter near you in New York City. They may come from us or from other food banks and shelters in our network. It’s a few at most each week. Message and data rates from your phone company may apply. You can reply STOP at any time and we’ll stop. Do you agree?”</p>
+      <p class="stage">Draft wording. Have a lawyer review it before real use.</p>
+    </div>
+    <div class="check">
+      <input type="checkbox" id="agreed" required>
+      <label for="agreed">I read this out loud and the person said yes.</label>
+    </div>
+    <fieldset>
+      <div class="legend">How did they agree?</div>
+      <div class="choices">
+        <label class="choice"><input type="radio" name="how" value="verbal" checked><span>Said yes out loud</span></label>
+        <label class="choice"><input type="radio" name="how" value="written"><span>Signed a form</span></label>
+      </div>
+    </fieldset>
+    <div><label for="ph">Mobile number</label><input id="ph" type="tel" inputmode="tel" autocomplete="off" placeholder="(718) 555-0142" required></div>
+    <fieldset>
+      <div class="legend">How should we reach them?</div>
+      <div class="choices">
+        <label class="choice"><input type="radio" name="ch" value="sms" checked><span>Text message</span></label>
+        <label class="choice"><input type="radio" name="ch" value="voice"><span>Phone call</span></label>
+      </div>
+    </fieldset>
+    <div class="row2">
+      <div><label for="lang">Language</label>
+        <select id="lang"><option value="en">English</option><option value="es">Español</option><option value="zh">中文</option><option value="ru">Русский</option><option value="bn">বাংলা</option><option value="ht">Kreyòl ayisyen</option></select></div>
+      <div><label for="zip">Where do they usually stay?</label><p class="hint">ZIP code is enough.</p><input id="zip" type="text" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" autocomplete="off" placeholder="11216" required></div>
+    </div>
+    <p class="err" id="enrollErr" role="alert" tabindex="-1" hidden></p>
+    <button class="btn" type="submit" id="enrollBtn" disabled>Enroll person</button>
+  </form>
+</main>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script type="module" src="/app.js"></script>
+</body>
+</html>
