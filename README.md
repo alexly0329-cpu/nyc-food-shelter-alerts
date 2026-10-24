@@ -32,6 +32,7 @@ cp .env.example .env               # then fill in values; never commit real secr
 | `VONAGE_NUMBER` | Required to send | Your Vonage number in E.164, e.g. `+12125550100`. Sender for SMS and calls; also read when building voice text ("text STOP to ..."). |
 | `VONAGE_SIGNATURE_SECRET` | Required in production | Signature secret for signed webhooks. If unset, every webhook is rejected with 401 (so STOP replies are not processed) and a warning prints at boot. |
 | `VONAGE_RATE_PER_SECOND` | Optional | Send rate cap, positive integer, default 10. |
+| `MAX_ALERT_KM` | Optional | Furthest a recipient can be from the alert address, in km. Positive number, default 5. Recipients beyond it are never messaged. |
 | `PORT` | Optional | HTTP port, default 3000. |
 | `NODE_ENV` | Optional | Set to `production` in production: it turns on the `Secure` flag for session cookies and makes the seed script refuse to run. `test` selects test defaults. |
 | `DEV_SEED_PASSWORD` | Dev only | Password (10+ characters) for the demo accounts created by `npm run seed:dev`. |

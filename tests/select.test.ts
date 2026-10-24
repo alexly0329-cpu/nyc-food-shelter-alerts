@@ -117,3 +117,26 @@ describe('selectRecipients', () => {
     await expect(selectRecipients(pool, { lat: 0, lng: Infinity, cap: 1, now: NOW })).rejects.toThrow(/lng/);
   });
 });
+
+describe('selectRecipients maxKm', () => {
+  const within = (maxKm?: number) => selectRecipients(pool, { ...ORIGIN, cap: 10, now: NOW, maxKm });
+  it('excludes a recipient ~30 km away when maxKm=5, includes it when omitted; keeps a 4 km one', async () => {
+    const far = await addRecipient(40.97, -74.0); // ~30 km north
+    const near = await addRecipient(40.736, -74.0); // ~4 km north
+    expect(distanceKm(ORIGIN, { lat: 40.97, lng: -74 })).toBeGreaterThan(29);
+    expect(distanceKm(ORIGIN, { lat: 40.736, lng: -74 })).toBeLessThan(4.1);
+    expect((await within(5)).map((r) => r.id)).toEqual([near.id]);
+    expect((await within()).map((r) => r.id)).toEqual([near.id, far.id]);
+  });
+  it('boundary: <= maxKm is included, just beyond is not', async () => {
+    const p = { lat: 40.74, lng: -74.0 };
+    const r = await addRecipient(p.lat, p.lng);
+    const d = distanceKm(ORIGIN, p);
+    expect((await within(d + 1e-6)).map((x) => x.id)).toEqual([r.id]);
+    expect(await within(d - 1e-6)).toEqual([]);
+  });
+  it('rejects non-positive or non-finite maxKm', async () => {
+    for (const m of [0, -1, NaN, Infinity]) await expect(within(m)).rejects.toThrow(/maxKm/);
+  });
+});
+

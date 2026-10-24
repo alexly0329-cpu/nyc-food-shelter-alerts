@@ -122,6 +122,15 @@ describe('buildMessageText / voiceLocale', () => {
 });
 
 describe('runSendJob', () => {
+  it('never messages a recipient beyond MAX_ALERT_KM (default 5 km)', async () => {
+    const near = await addRecipient(40.71);
+    await addRecipient(41.0); // ~33 km
+    const id = await addAlert();
+    const f = fakeSender();
+    await runSendJob(mk(f.sender), id);
+    expect(f.calls.map((c) => c.to)).toEqual([near.phone]);
+  });
+
   it('sends to every recipient by channel with exact text and locale', async () => {
     const s = await addRecipient(40.71);
     const v = await addRecipient(40.72, { channel: 'voice', language: 'Español' });
@@ -255,7 +264,7 @@ describe('runSendJob', () => {
   });
 
   it('respects the cap', async () => {
-    for (let i = 0; i < 7; i++) await addRecipient(40.71 + i / 100);
+    for (let i = 0; i < 7; i++) await addRecipient(40.71 + i / 1000);
     const id = await addAlert({ cap: 5 });
     const { sender, calls } = fakeSender();
     await runSendJob(mk(sender), id);
@@ -310,7 +319,7 @@ describe('runSendJob', () => {
   });
 
   it('running twice, sequentially or in parallel, messages each recipient once', async () => {
-    for (let i = 0; i < 6; i++) await addRecipient(40.71 + i / 100);
+    for (let i = 0; i < 6; i++) await addRecipient(40.71 + i / 1000);
     const id1 = await addAlert({ cap: 6 });
     const seqRun = fakeSender();
     await runSendJob(mk(seqRun.sender), id1);
@@ -329,7 +338,7 @@ describe('runSendJob', () => {
   });
 
   it('two alerts selecting at once never share a recipient', async () => {
-    for (let i = 0; i < 6; i++) await addRecipient(40.71 + i / 100);
+    for (let i = 0; i < 6; i++) await addRecipient(40.71 + i / 1000);
     const id1 = await addAlert({ cap: 6 });
     const id2 = await addAlert({ cap: 6 });
     const f = fakeSender(() => new Promise((r) => setTimeout(r, 3)));

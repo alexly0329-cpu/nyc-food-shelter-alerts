@@ -106,7 +106,7 @@ export async function runSendJob(deps: SendJobDeps, alertId: string): Promise<vo
       [alertId],
     );
     if (!claim.rowCount) return;
-    const picked = await selectRecipients(c, { lat: alert.lat, lng: alert.lng, cap: alert.capacity_cap, now: deps.now() });
+    const picked = await selectRecipients(c, { lat: alert.lat, lng: alert.lng, cap: alert.capacity_cap, now: deps.now(), maxKm: config.MAX_ALERT_KM });
     for (const r of picked) {
       await c.query(
         'INSERT INTO deliveries (alert_id, recipient_id, status) VALUES ($1, $2, $3) ON CONFLICT (alert_id, recipient_id) DO NOTHING',

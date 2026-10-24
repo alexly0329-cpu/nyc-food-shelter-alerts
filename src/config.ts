@@ -30,7 +30,16 @@ export function assertSafeTestDb(url: string): void {
 const rate = process.env.VONAGE_RATE_PER_SECOND ? Number(process.env.VONAGE_RATE_PER_SECOND) : 10;
 if (!Number.isInteger(rate) || rate < 1) throw new Error('VONAGE_RATE_PER_SECOND must be a positive integer');
 
+/** MAX_ALERT_KM: optional, positive float, default 5. Message never echoes more than the var name. */
+export function parseMaxAlertKm(raw: string | undefined): number {
+  if (raw === undefined || raw === '') return 5;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) throw new Error('MAX_ALERT_KM must be a positive number');
+  return n;
+}
+
 export const config = {
+  MAX_ALERT_KM: parseMaxAlertKm(process.env.MAX_ALERT_KM),
   VONAGE_RATE_PER_SECOND: rate,
   DATABASE_URL: env('DATABASE_URL'),
   PHONE_ENCRYPTION_KEY: encKey,
