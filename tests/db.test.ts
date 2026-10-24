@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { assertSafeTestDb } from '../src/config.js';
 import { getPool, migrate } from '../src/db.js';
 
 const pool = getPool();
@@ -49,5 +50,33 @@ describe('schema', () => {
     await pool.query('UPDATE consents SET revoked_at = now() WHERE id = $1', [id]);
     const { rows } = await pool.query('SELECT revoked_at FROM consents WHERE id = $1', [id]);
     expect(rows[0].revoked_at).not.toBeNull();
+  });
+
+  it('consents rejects revoked_at set together with another column', async () => {
+    const id = await seedConsent();
+    await expect(
+      pool.query(`UPDATE consents SET revoked_at = now(), method = 'written' WHERE id = $1`, [id]),
+    ).rejects.toThrow(/append-only/);
+  });
+
+  it('consents rejects clearing or changing an already-set revoked_at', async () => {
+    const id = await seedConsent();
+    await pool.query('UPDATE consents SET revoked_at = now() WHERE id = $1', [id]);
+    await expect(pool.query('UPDATE consents SET revoked_at = NULL WHERE id = $1', [id])).rejects.toThrow(/revoked_at/);
+    await expect(
+      pool.query(`UPDATE consents SET revoked_at = now() + interval '1 day' WHERE id = $1`, [id]),
+    ).rejects.toThrow(/revoked_at/);
+  });
+});
+
+describe('assertSafeTestDb', () => {
+  it('accepts local _test databases', () => {
+    expect(() => assertSafeTestDb('postgres://u:p@localhost:5433/alerts_test')).not.toThrow();
+    expect(() => assertSafeTestDb('postgres://u:p@127.0.0.1/x_test')).not.toThrow();
+  });
+  it('rejects remote hosts and non-_test names', () => {
+    expect(() => assertSafeTestDb('postgres://u:p@db.prod.example.com/alerts_test')).toThrow(/Refusing/);
+    expect(() => assertSafeTestDb('postgres://u:p@localhost/alerts')).toThrow(/Refusing/);
+    expect(() => assertSafeTestDb('postgres://u:p@localhost.evil.com/alerts_test')).toThrow(/Refusing/);
   });
 });

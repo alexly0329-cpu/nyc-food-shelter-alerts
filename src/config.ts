@@ -18,6 +18,15 @@ if (Buffer.from(encKey, 'base64').length !== 32) {
   throw new Error('PHONE_ENCRYPTION_KEY must be 32 bytes, base64-encoded');
 }
 
+// Tests drop the public schema, so refuse anything but a local *_test database.
+export function assertSafeTestDb(url: string): void {
+  const u = new URL(url);
+  const db = decodeURIComponent(u.pathname.slice(1));
+  if (!['localhost', '127.0.0.1'].includes(u.hostname) || !db.endsWith('_test')) {
+    throw new Error(`Refusing to wipe ${u.hostname}/${db}: need host localhost or 127.0.0.1 and a database name ending in _test`);
+  }
+}
+
 export const config = {
   DATABASE_URL: env('DATABASE_URL'),
   PHONE_ENCRYPTION_KEY: encKey,

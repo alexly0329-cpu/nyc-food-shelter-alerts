@@ -55,6 +55,9 @@ BEGIN
   IF (to_jsonb(NEW) - 'revoked_at') IS DISTINCT FROM (to_jsonb(OLD) - 'revoked_at') THEN
     RAISE EXCEPTION 'consents is append-only: only revoked_at may be updated';
   END IF;
+  IF OLD.revoked_at IS NOT NULL AND NEW.revoked_at IS DISTINCT FROM OLD.revoked_at THEN
+    RAISE EXCEPTION 'consents is append-only: revoked_at cannot be changed once set';
+  END IF;
   RETURN NEW;
 END $$;
 
