@@ -87,6 +87,19 @@ describe('enrollRecipient', () => {
     expect(r.rows[0].enrolled_by_provider_id).toBe(providerId);
   });
 
+  it('updates channel, language, zip and location on re-enrollment but not the enrolling provider', async () => {
+    const p2 = (await pool.query(
+      `INSERT INTO providers (name, address, contact, status) VALUES ('Other', '2 Main St', 'Sam', 'approved') RETURNING id`,
+    )).rows[0].id;
+    const a = await enrollRecipient(pool, input());
+    const before = (await pool.query('SELECT * FROM recipients WHERE id = $1', [a.recipientId])).rows[0];
+    await enrollRecipient(pool, { ...input(), providerId: p2, zip: '10451', channel: 'voice', language: 'es' });
+    const after = (await pool.query('SELECT * FROM recipients WHERE id = $1', [a.recipientId])).rows[0];
+    expect(after).toMatchObject({ channel: 'voice', language: 'es', zip: '10451', enrolled_by_provider_id: providerId });
+    expect(after.lat).not.toBe(before.lat);
+    expect(after.lng).not.toBe(before.lng);
+  });
+
   it('reactivates a stopped recipient with a new consent; old revoked rows stay revoked', async () => {
     const a = await enrollRecipient(pool, input());
     await revokeConsent(pool, '+17185550142');

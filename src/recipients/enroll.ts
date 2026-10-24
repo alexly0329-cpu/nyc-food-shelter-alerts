@@ -41,7 +41,8 @@ export async function enrollRecipient(db: pg.Pool, input: EnrollInput): Promise<
     const r = await c.query(
       `INSERT INTO recipients (phone, phone_hash, channel, language, zip, lat, lng, enrolled_by_provider_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       ON CONFLICT (phone_hash) DO UPDATE SET status = 'active'
+       ON CONFLICT (phone_hash) DO UPDATE SET status = 'active', channel = EXCLUDED.channel, language = EXCLUDED.language,
+         zip = EXCLUDED.zip, lat = EXCLUDED.lat, lng = EXCLUDED.lng
        RETURNING id`,
       [encryptPhone(phone), phoneHash(phone), input.channel, input.language, input.zip, point.lat, point.lng, input.providerId],
     );
