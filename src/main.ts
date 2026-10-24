@@ -32,11 +32,15 @@ const app = buildServer({
   secureCookies: process.env.NODE_ENV === 'production',
 });
 
+let stopping = false;
 const stop = async () => {
-  await app.close();
-  await queue.stop();
-  await pool.end();
-  process.exit(0);
+  if (stopping) return;
+  stopping = true;
+  let code = 0;
+  for (const step of [() => app.close(), () => queue.stop(), () => pool.end()]) {
+    try { await step(); } catch { code = 1; }
+  }
+  process.exit(code);
 };
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);

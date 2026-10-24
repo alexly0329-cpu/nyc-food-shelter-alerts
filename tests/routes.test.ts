@@ -472,8 +472,15 @@ describe('webhooks', () => {
     await enrolled();
     sendSms.mockRejectedValue(new Error('vonage down'));
     const body = JSON.stringify({ from: '17185550142', text: 'STOP' });
-    expect((await hook('/webhooks/vonage/inbound', body, token(body))).statusCode).toBe(200);
+    const out: string[] = [];
+    const spy = vi.spyOn(process.stdout, 'write').mockImplementation(((c: unknown) => { out.push(String(c)); return true; }) as never);
+    try {
+      expect((await hook('/webhooks/vonage/inbound', body, token(body))).statusCode).toBe(200);
+    } finally { spy.mockRestore(); }
     expect(await activeConsents()).toBe(0);
+    const events = out.map((l) => JSON.parse(l));
+    expect(events).toEqual([expect.objectContaining({ event: 'send_failed', channel: 'sms', reason: 'reply_failed' })]);
+    expect(out.join('')).not.toContain('17185550142');
   });
 
   it('valid status event updates a delivery', async () => {

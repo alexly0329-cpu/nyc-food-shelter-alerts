@@ -2,13 +2,19 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { config } from './config.js';
+import { logEvent } from './ops/log.js';
 
 const MIGRATIONS_DIR = fileURLToPath(new URL('../migrations/', import.meta.url));
 
 let pool: pg.Pool | undefined;
 
 export function getPool(): pg.Pool {
-  return (pool ??= new pg.Pool({ connectionString: config.DATABASE_URL }));
+  if (!pool) {
+    pool = new pg.Pool({ connectionString: config.DATABASE_URL });
+    // An idle client's error would otherwise be an unhandled 'error' event and crash the process.
+    pool.on('error', () => logEvent('queue_error', { reason: 'db_pool_error' }));
+  }
+  return pool;
 }
 
 export async function withTx<T>(p: pg.Pool, fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {

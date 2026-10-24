@@ -1,7 +1,9 @@
 // Usage: DEV_SEED_PASSWORD=<10+ chars> DATABASE_URL=... PHONE_ENCRYPTION_KEY=... PHONE_HASH_KEY=... npm run seed:dev
-// Creates an approved "Demo Pantry" with a staff user, an admin user and 2 enrolled test recipients. Safe to re-run.
+// Creates an approved "Demo Pantry" with a staff user, an admin user and 2 enrolled test recipients. Safe to re-run: never overwrites an existing user's password. Local database only.
 const pw = process.env.DEV_SEED_PASSWORD;
 if (process.env.NODE_ENV === 'production') throw new Error('Refusing to seed with NODE_ENV=production');
+const { assertLocalDb } = await import('./seed-guard.js');
+assertLocalDb(process.env.DATABASE_URL ?? '');
 if (!pw || pw.length < 10) throw new Error('DEV_SEED_PASSWORD is required and must be at least 10 characters');
 
 // Imported after the checks so a refused run never touches config or the database.
@@ -20,12 +22,12 @@ try {
   await pool.query(`UPDATE providers SET status = 'approved' WHERE id = $1`, [providerId]);
   await pool.query(
     `INSERT INTO provider_users (provider_id, email, password_hash) VALUES ($1, 'demo@example.test', $2)
-     ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
+     ON CONFLICT (email) DO NOTHING`,
     [providerId, hash],
   );
   await pool.query(
     `INSERT INTO provider_users (email, password_hash, role) VALUES ('admin@example.test', $1, 'admin')
-     ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
+     ON CONFLICT (email) DO NOTHING`,
     [hash],
   );
   const have = (await pool.query('SELECT count(*)::int AS n FROM recipients WHERE enrolled_by_provider_id = $1', [providerId])).rows[0].n as number;

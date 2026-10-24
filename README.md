@@ -25,7 +25,7 @@ cp .env.example .env               # then fill in values; never commit real secr
 | --- | --- | --- |
 | `DATABASE_URL` | Required | Postgres connection string, e.g. `postgres://postgres:postgres@localhost:5433/alerts`. Used by the app, pg-boss, the seed script and `npm run summary`. |
 | `PHONE_ENCRYPTION_KEY` | Required | 32 random bytes, base64. Encrypts stored phone numbers. The app refuses to start if it is not 32 bytes. |
-| `PHONE_HASH_KEY` | Required | 32 random bytes, base64. Keyed hash used to look recipients up and detect duplicates. |
+| `PHONE_HASH_KEY` | Required | At least 32 random bytes, base64 (the app refuses to start otherwise). Keyed hash used to look recipients up and detect duplicates. |
 | `TAVILY_API_KEY` | Optional | Tavily API key for checking applying organizations. Without it, applying still works but the organization is not verified. |
 | `VONAGE_APPLICATION_ID` | Required to send | Vonage application ID (Messages and Voice APIs). Read when the first message is sent, not at boot. |
 | `VONAGE_PRIVATE_KEY` | Required to send | The application's private key: an inline PEM (use `\n` for newlines) or a path to a PEM file. |
@@ -48,11 +48,13 @@ Warning: if `PHONE_ENCRYPTION_KEY` is lost, every stored phone number is unrecov
 
 ## Run
 
-There is no `start` script yet; run the entry point with tsx (the host must export the variables above):
+Export the variables above in the host environment, then:
 
 ```sh
-npx tsx src/main.ts        # serves the dashboard at http://localhost:3000
+npm start        # tsx src/main.ts; serves the dashboard at http://localhost:3000
 ```
+
+With `NODE_ENV=production` the process refuses to start (listing the variable names only) unless `VONAGE_APPLICATION_ID`, `VONAGE_PRIVATE_KEY`, `VONAGE_NUMBER`, `VONAGE_SIGNATURE_SECRET` and `TAVILY_API_KEY` are all set. `tsx` is a runtime dependency.
 
 | Command | What it does |
 | --- | --- |

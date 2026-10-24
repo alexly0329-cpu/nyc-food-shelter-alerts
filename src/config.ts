@@ -18,9 +18,19 @@ if (Buffer.from(encKey, 'base64').length !== 32) {
   throw new Error('PHONE_ENCRYPTION_KEY must be 32 bytes, base64-encoded');
 }
 
+/** PHONE_HASH_KEY: base64, at least 32 bytes. The error never echoes the value. */
+export function parseHashKey(raw: string): string {
+  if (Buffer.from(raw, 'base64').length < 32) throw new Error('PHONE_HASH_KEY must decode to at least 32 bytes (base64)');
+  return raw;
+}
+
 // Tests drop the public schema, so refuse anything but a local *_test database.
 export function assertSafeTestDb(url: string): void {
   const u = new URL(url);
+  // host= / hostaddr= in the query string override the URL host in libpq-style clients.
+  if ([...u.searchParams.keys()].some((k) => ['host', 'hostaddr'].includes(k.toLowerCase()))) {
+    throw new Error(`Refusing to wipe ${u.hostname}: connection string carries a host or hostaddr parameter`);
+  }
   const db = decodeURIComponent(u.pathname.slice(1));
   if (!['localhost', '127.0.0.1'].includes(u.hostname) || !db.endsWith('_test')) {
     throw new Error(`Refusing to wipe ${u.hostname}/${db}: need host localhost or 127.0.0.1 and a database name ending in _test`);
@@ -43,5 +53,5 @@ export const config = {
   VONAGE_RATE_PER_SECOND: rate,
   DATABASE_URL: env('DATABASE_URL'),
   PHONE_ENCRYPTION_KEY: encKey,
-  PHONE_HASH_KEY: env('PHONE_HASH_KEY'),
+  PHONE_HASH_KEY: parseHashKey(env('PHONE_HASH_KEY')),
 };

@@ -29,7 +29,10 @@ export function webhookRoutes(app: FastifyInstance, deps: ServerDeps): void {
     if (reply) {
       try {
         await deps.sender.sendSms(from.replace(/\D/g, ''), reply);
-      } catch { /* respond 200 regardless so Vonage does not retry */ }
+      } catch {
+        // Respond 200 regardless so Vonage does not retry; no error text (it could carry the number).
+        logEvent('send_failed', { channel: 'sms', reason: 'reply_failed' });
+      }
     }
     return {};
   });

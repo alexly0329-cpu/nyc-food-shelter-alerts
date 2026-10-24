@@ -1,5 +1,5 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { assertSafeTestDb } from '../src/config.js';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { assertSafeTestDb, parseHashKey } from '../src/config.js';
 import { getPool, migrate } from '../src/db.js';
 
 const pool = getPool();
@@ -78,5 +78,33 @@ describe('assertSafeTestDb', () => {
     expect(() => assertSafeTestDb('postgres://u:p@db.prod.example.com/alerts_test')).toThrow(/Refusing/);
     expect(() => assertSafeTestDb('postgres://u:p@localhost/alerts')).toThrow(/Refusing/);
     expect(() => assertSafeTestDb('postgres://u:p@localhost.evil.com/alerts_test')).toThrow(/Refusing/);
+  });
+  it('rejects host= and hostaddr= query parameters that override the host', () => {
+    expect(() => assertSafeTestDb('postgres://u:p@localhost/alerts_test?host=db.prod.example.com')).toThrow(/Refusing/);
+    expect(() => assertSafeTestDb('postgres://u:p@localhost/alerts_test?hostaddr=10.0.0.5')).toThrow(/Refusing/);
+    expect(() => assertSafeTestDb('postgres://u:p@localhost/alerts_test?sslmode=disable&HOST=x')).toThrow(/Refusing/);
+  });
+});
+
+describe('pool error handler', () => {
+  it('an idle-client error is logged as queue_error/db_pool_error without its text and does not throw', () => {
+    const out: string[] = [];
+    const spy = vi.spyOn(process.stdout, 'write').mockImplementation(((c: unknown) => { out.push(String(c)); return true; }) as never);
+    try {
+      expect(() => pool.emit('error', new Error('conn to 10.1.2.3 as secretuser'))).not.toThrow();
+    } finally { spy.mockRestore(); }
+    expect(out.map((l) => JSON.parse(l))).toEqual([expect.objectContaining({ event: 'queue_error', reason: 'db_pool_error' })]);
+    expect(out.join('')).not.toContain('secretuser');
+  });
+});
+
+describe('parseHashKey', () => {
+  it('accepts 32 bytes, rejects shorter, and never echoes the value', () => {
+    const ok = Buffer.alloc(32, 9).toString('base64');
+    expect(parseHashKey(ok)).toBe(ok);
+    const short = Buffer.alloc(16, 9).toString('base64');
+    expect(() => parseHashKey(short)).toThrow(/PHONE_HASH_KEY must decode to at least 32 bytes/);
+    try { parseHashKey(short); } catch (e) { expect((e as Error).message).not.toContain(short); }
+    expect(() => parseHashKey('!!')).toThrow(/PHONE_HASH_KEY/);
   });
 });
