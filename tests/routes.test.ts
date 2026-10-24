@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { hashPassword } from '../src/auth/users.js';
 import { getPool } from '../src/db.js';
+import * as applyMod from '../src/providers/apply.js';
 import { buildServer } from '../src/server.js';
 
 const pool = getPool();
@@ -207,6 +208,30 @@ describe('apply', () => {
   });
 });
 
+describe('apply errors by code', () => {
+  const body = { name: 'Test Pantry', address: '123 Main St, Brooklyn, NY', contactName: 'Pat', phone: '(212) 555-0123', email: 'code@example.org', password: PW };
+  it('a plain unknown Error is a generic 500 that never echoes its message', async () => {
+    const spy = vi.spyOn(applyMod, 'applyProvider').mockRejectedValue(new Error('secret internal detail'));
+    try {
+      const r = await post('/api/apply', body);
+      expect(r.statusCode).toBe(500);
+      expect(r.json()).toEqual({ error: 'internal_error' });
+      expect(r.body).not.toContain('secret internal detail');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+  it('password over 256 characters is 400', async () => {
+    expect((await post('/api/apply', { ...body, password: 'x'.repeat(257) })).statusCode).toBe(400);
+  });
+  it('an invalid language is 400 INVALID_INPUT on enroll', async () => {
+    const s = await staff();
+    const r = await post('/api/enroll', enrollBody({ language: 'Klingon' }), s.cookie);
+    expect(r.statusCode).toBe(400);
+    expect(r.json().error).toBe('INVALID_INPUT');
+  });
+});
+
 describe('enroll', () => {
   it('201 {ok:true}, never echoes phone or ids', async () => {
     const s = await staff();
@@ -291,6 +316,25 @@ describe('alerts', () => {
     expectNoPhone(r.body);
     const rBrows = (await get('/api/alerts', b.cookie)).json() as Array<{ alertId: string }>;
     expect(rBrows.map((x) => x.alertId)).toEqual([rb]);
+  });
+});
+
+describe('admin provider list details', () => {
+  it('includes parsed contact and applicant email, bounded raw fallback, admin only', async () => {
+    const a = await admin();
+    const ok = (await post('/api/apply', {
+      name: 'Test Pantry', address: '123 Main St', contactName: 'Pat', phone: '(212) 555-0123', email: 'Applicant@Example.org', password: PW,
+    })).json().providerId as string;
+    const bare = (await pool.query(`INSERT INTO providers (name, address, contact) VALUES ('Bare', '1 Main St', $1) RETURNING id`, ['x'.repeat(5000)])).rows[0].id as string;
+    const list = (await get('/api/admin/providers', a.cookie)).json() as Array<{ id: string; contact: unknown; applicantEmail: string | null }>;
+    const row = list.find((r) => r.id === ok)!;
+    expect(row.contact).toEqual({ contactName: 'Pat', phone: '+12125550123', website: null });
+    expect(row.applicantEmail).toBe('applicant@example.org');
+    const b = list.find((r) => r.id === bare)!;
+    expect(typeof b.contact).toBe('string');
+    expect((b.contact as string).length).toBeLessThanOrEqual(500);
+    expect(b.applicantEmail).toBeNull();
+    expect((await get('/api/admin/providers', (await staff()).cookie)).statusCode).toBe(403);
   });
 });
 

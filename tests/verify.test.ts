@@ -55,6 +55,20 @@ describe('verifyAlert', () => {
   });
 });
 
+describe('weak needles', () => {
+  const run = (name: string, address: string, text: string) =>
+    verifyAlert(fake([hit('t', text)]), { ...alert, providerName: name, address }).then((r) => r.status);
+  it('street part under 2 characters never verifies', async () => {
+    expect(await run('Hope', '5 A', 'Hope at 5 A')).toBe('needs_review');
+    expect(await run('Hope Pantry', '5 A, Brooklyn', 'Hope Pantry 5 A')).toBe('needs_review');
+  });
+  it('one-word name of 4+ characters is allowed, under 4 is not, two short tokens are', async () => {
+    expect(await run('Pantry', '214 Marcy Ave', 'Pantry 214 Marcy Avenue')).toBe('verified');
+    expect(await run('Hop', '214 Marcy Ave', 'Hop 214 Marcy Avenue')).toBe('needs_review');
+    expect(await run('A B', '214 Marcy Ave', 'A B 214 Marcy Avenue')).toBe('verified');
+  });
+});
+
 describe('verifyProvider', () => {
   const p = { name: 'Marcy Community Pantry', address: '214 Marcy Ave' };
   it('match is likely_legit', async () => {
@@ -97,6 +111,20 @@ describe('geocodeAddress', () => {
   });
   it('null outside NYC', async () => {
     expect(await geocodeAddress('x', ok(feat([-118.24, 34.05])))).toBeNull();
+  });
+  const withProps = (properties: unknown) => ({ features: [{ geometry: { coordinates: [-73.95, 40.7] }, properties }] });
+  it('null when match_type is fallback', async () => {
+    expect(await geocodeAddress('x', ok(withProps({ match_type: 'fallback' })))).toBeNull();
+  });
+  it('null when confidence is below 0.7, accepted at 0.7 and above', async () => {
+    expect(await geocodeAddress('x', ok(withProps({ confidence: 0.69 })))).toBeNull();
+    expect(await geocodeAddress('x', ok(withProps({ confidence: 0.7 })))).toEqual({ lat: 40.7, lng: -73.95 });
+    expect(await geocodeAddress('x', ok(withProps({ confidence: 1, match_type: 'exact' })))).toEqual({ lat: 40.7, lng: -73.95 });
+  });
+  it('accepts when properties or the fields are absent, ignores non-numeric confidence', async () => {
+    expect(await geocodeAddress('x', ok(withProps({})))).toEqual({ lat: 40.7, lng: -73.95 });
+    expect(await geocodeAddress('x', ok(withProps(undefined)))).toEqual({ lat: 40.7, lng: -73.95 });
+    expect(await geocodeAddress('x', ok(withProps({ confidence: 'low' })))).toEqual({ lat: 40.7, lng: -73.95 });
   });
   it('null on malformed JSON', async () => {
     const f = (async () => new Response('not json', { status: 200 })) as typeof fetch;

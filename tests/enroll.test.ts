@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { getPool } from '../src/db.js';
 import { phoneHash } from '../src/crypto.js';
-import { CONSENT_SCRIPT_VERSION, EnrollError, enrollRecipient } from '../src/recipients/enroll.js';
+import { CONSENT_SCRIPT_VERSION, EnrollError, enrollRecipient, LANGUAGES } from '../src/recipients/enroll.js';
 import { revokeConsent } from '../src/recipients/revoke.js';
 import { mkActor } from './helpers.js';
 
@@ -34,7 +34,7 @@ describe('enrollRecipient', () => {
     const c = await pool.query('SELECT * FROM consents WHERE recipient_id = $1', [recipientId]);
     expect(c.rows).toHaveLength(1);
     expect(c.rows[0]).toMatchObject({ consent_text_version: CONSENT_SCRIPT_VERSION, method: 'verbal', revoked_at: null });
-    expect(CONSENT_SCRIPT_VERSION).toBe('v1-draft');
+    expect(CONSENT_SCRIPT_VERSION).toBe('v2-draft');
   });
 
   it('stores the phone encrypted, not plain', async () => {
@@ -113,6 +113,22 @@ describe('enrollRecipient', () => {
     expect(c.rows).toHaveLength(2);
     expect(c.rows[0].revoked_at).not.toBeNull();
     expect(c.rows[1].revoked_at).toBeNull();
+  });
+});
+
+describe('language allow-list', () => {
+  it('exports the allowed values', () => {
+    expect([...LANGUAGES]).toEqual(['English', 'Español', '中文', 'Русский', 'বাংলা', 'Kreyòl ayisyen', 'en', 'es', 'zh', 'ru']);
+  });
+  it.each([...['English', 'Español', '中文', 'Русский', 'বাংলা', 'Kreyòl ayisyen', 'en', 'es', 'zh', 'ru']])('accepts %s', async (language) => {
+    await enrollRecipient(pool, { ...input(), language });
+  });
+  it.each(['', 'xx', 'English ', 'bn', '<script>'])('rejects %j with INVALID_INPUT and stores nothing', async (language) => {
+    expect(await code(enrollRecipient(pool, { ...input(), language }))).toBe('INVALID_INPUT');
+    expect(await count('recipients')).toBe(0);
+  });
+  it('rejects a 5000-character language', async () => {
+    expect(await code(enrollRecipient(pool, { ...input(), language: 'x'.repeat(5000) }))).toBe('INVALID_INPUT');
   });
 });
 

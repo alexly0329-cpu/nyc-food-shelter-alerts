@@ -5,7 +5,7 @@ import { postAlert, PostAlertError } from '../alerts/post.js';
 import { requireProvider } from '../auth/session.js';
 import { hashToken, login, SESSION_HOURS } from '../auth/users.js';
 import { verifyProvider } from '../integrations/tavily.js';
-import { applyProvider } from '../providers/apply.js';
+import { ApplyError, applyProvider } from '../providers/apply.js';
 import { enrollRecipient, EnrollError } from '../recipients/enroll.js';
 import { HttpError, optOut, parse, sessionToken, type ServerDeps } from './util.js';
 
@@ -34,10 +34,9 @@ export function apiRoutes(app: FastifyInstance, deps: ServerDeps): void {
     try {
       ({ providerId } = await applyProvider(db, body));
     } catch (e) {
-      // pg errors carry a code and are real failures; plain Errors are validation or duplicate-email messages.
-      if (!(e instanceof Error) || 'code' in e) throw e;
-      if (e.message === 'That email is already registered') throw new HttpError(409, 'email_taken', e.message);
-      throw new HttpError(400, 'invalid_input', e.message);
+      // Only typed ApplyErrors are client errors; anything else is a real failure (generic 500).
+      if (e instanceof ApplyError) throw new HttpError(e.code === 'EMAIL_TAKEN' ? 409 : 400, e.code === 'EMAIL_TAKEN' ? 'email_taken' : 'invalid_input', e.message);
+      throw e;
     }
     try {
       const result = await verifyProvider(deps.tavily, { name: body.name, address: body.address });

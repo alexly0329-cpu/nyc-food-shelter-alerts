@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { LANGUAGES } from '../src/recipients/enroll.js';
 import { getPool } from '../src/db.js';
 import { buildServer } from '../src/server.js';
 
@@ -94,6 +95,15 @@ describe('CSP-clean source', () => {
     expect(js).toContain("api('POST', '/api/optout'");
     expect(html).toContain("Done. We won't message that number again.");
     expect(js).toMatch(/\$\('#optPh'\)\.value = ''/);
+  });
+  it('consent script promises at most one message a day', () => {
+    expect(html).toContain('We send no more than one message a day.');
+    expect(html).not.toContain('few at most each week');
+  });
+  it('language options only use values the server accepts', () => {
+    const values = [...html.matchAll(/<option value="([^"]+)">/g)].map((m) => m[1]);
+    expect(values.length).toBe(6);
+    for (const v of values) expect(LANGUAGES).toContain(v);
   });
   it('radio groups have legends', () => {
     expect(html.match(/<fieldset>\s*<legend\b/g)?.length).toBe(html.match(/<fieldset>/g)?.length);

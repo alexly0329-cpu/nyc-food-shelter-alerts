@@ -1,6 +1,6 @@
 import type pg from 'pg';
 import { z } from 'zod';
-import { hashPassword } from '../auth/users.js';
+import { hashPassword, MAX_PASSWORD } from '../auth/users.js';
 import { withTx } from '../db.js';
 import { normalizePhone } from '../phone.js';
 
@@ -16,14 +16,22 @@ const schema = z.object({
   }),
   website: z.string().trim().optional(),
   email: z.string().trim().toLowerCase().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'email is invalid'),
-  password: z.string().min(10, 'password must be at least 10 characters'),
+  password: z.string().min(10, 'password must be at least 10 characters').max(MAX_PASSWORD, `password must be at most ${MAX_PASSWORD} characters`),
 });
+
+/** Messages are fixed or validation texts; safe to show to the applicant. */
+export class ApplyError extends Error {
+  constructor(public readonly code: 'EMAIL_TAKEN' | 'INVALID_INPUT', message: string) {
+    super(message);
+    this.name = 'ApplyError';
+  }
+}
 
 export type ApplyInput = z.input<typeof schema>;
 
 export async function applyProvider(db: pg.Pool, input: ApplyInput): Promise<{ providerId: string }> {
   const r = schema.safeParse(input);
-  if (!r.success) throw new Error(r.error.issues.map((i) => i.message).join('; '));
+  if (!r.success) throw new ApplyError('INVALID_INPUT', r.error.issues.map((i) => i.message).join('; '));
   const v = r.data;
   const passwordHash = await hashPassword(v.password);
   try {
@@ -41,7 +49,7 @@ export async function applyProvider(db: pg.Pool, input: ApplyInput): Promise<{ p
       return { providerId: p.rows[0].id as string };
     });
   } catch (e) {
-    if ((e as { code?: string }).code === '23505') throw new Error('That email is already registered');
+    if ((e as { code?: string }).code === '23505') throw new ApplyError('EMAIL_TAKEN', 'That email is already registered');
     throw e;
   }
 }

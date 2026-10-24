@@ -45,6 +45,17 @@ describe('login', () => {
   });
 });
 
+describe('login password length', () => {
+  it('rejects passwords over 256 characters without verifying, even if they match the stored hash', async () => {
+    const long = 'x'.repeat(257);
+    await pool.query(`INSERT INTO provider_users (email, password_hash, role) VALUES ('long@example.org', $1, 'admin')`, [await hashPassword(long)]);
+    expect(await login(pool, 'long@example.org', long)).toBeNull();
+    const ok = 'y'.repeat(256);
+    await pool.query(`INSERT INTO provider_users (email, password_hash, role) VALUES ('ok@example.org', $1, 'admin')`, [await hashPassword(ok)]);
+    expect(await login(pool, 'ok@example.org', ok)).not.toBeNull();
+  });
+});
+
 describe('requireProvider', () => {
   it('401 without, invalid or expired token', async () => {
     const { providerId } = await applyProvider(pool, input);

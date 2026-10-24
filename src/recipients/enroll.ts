@@ -4,7 +4,10 @@ import { withTx } from '../db.js';
 import { zipToCentroid } from '../geo/geo.js';
 import { normalizePhone } from '../phone.js';
 
-export const CONSENT_SCRIPT_VERSION = 'v1-draft';
+export const CONSENT_SCRIPT_VERSION = 'v2-draft';
+
+/** Stored in recipients.language; the UI offers exactly these (names and codes are both accepted). */
+export const LANGUAGES = ['English', 'Español', '中文', 'Русский', 'বাংলা', 'Kreyòl ayisyen', 'en', 'es', 'zh', 'ru'] as const;
 
 export type EnrollErrorCode = 'SCRIPT_NOT_CONFIRMED' | 'INVALID_PHONE' | 'ZIP_NOT_NYC' | 'INVALID_INPUT';
 
@@ -35,6 +38,7 @@ export async function enrollRecipient(db: pg.Pool, input: EnrollInput): Promise<
   if (!phone) throw new EnrollError('INVALID_PHONE', 'Phone is not a valid US number');
   const point = zipToCentroid(input.zip);
   if (!point) throw new EnrollError('ZIP_NOT_NYC', 'ZIP code is not a recognized NYC ZIP code');
+  if (!(LANGUAGES as readonly string[]).includes(input.language)) throw new EnrollError('INVALID_INPUT', 'Language is not supported');
   if (input.channel !== 'sms' && input.channel !== 'voice') throw new EnrollError('INVALID_INPUT', 'Channel must be sms or voice');
   if (input.method !== 'verbal' && input.method !== 'written') throw new EnrollError('INVALID_INPUT', 'Method must be verbal or written');
 

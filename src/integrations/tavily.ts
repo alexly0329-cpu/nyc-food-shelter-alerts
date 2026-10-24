@@ -28,7 +28,10 @@ function norm(s: string): string {
 async function matches(client: TavilyLike, name: string, address: string): Promise<boolean | 'error'> {
   const street = norm(address.split(',')[0] ?? '');
   const n = norm(name);
-  if (n.trim() === '' || !/^ \d+ \S/.test(street)) return false; // need name and "<number> <street>"
+  // Weak needles verify too easily: need "<number> <street of 2+ chars>" and a name of 4+ chars or 2+ words.
+  const rest = /^ \d+ (.+) $/.exec(street)?.[1] ?? '';
+  const nameOk = n.trim().length >= 4 || n.trim().split(' ').length >= 2;
+  if (rest.length < 2 || !nameOk) return false;
   const query = `${name.slice(0, 100)} ${address.slice(0, 150)} NYC food shelter`;
   try {
     const { results } = await client.search(query);

@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { getPool } from '../src/db.js';
-import { applyProvider } from '../src/providers/apply.js';
-import { approveProvider, suspendProvider } from '../src/providers/admin.js';
+import { ApplyError, applyProvider } from '../src/providers/apply.js';
+import { approveProvider, ProviderAdminError, suspendProvider } from '../src/providers/admin.js';
 import { hashPassword } from '../src/auth/users.js';
 
 const pool = getPool();
@@ -46,6 +46,25 @@ describe('applyProvider', () => {
     await expect(applyProvider(pool, { ...input, email: 'nope' })).rejects.toThrow(/email/);
     await expect(applyProvider(pool, { ...input, phone: '123' })).rejects.toThrow(/phone/);
     await expect(applyProvider(pool, { ...input, password: 'short' })).rejects.toThrow(/password/);
+  });
+});
+
+describe('typed errors', () => {
+  const codeOf = (p: Promise<unknown>) => p.then(() => null, (e) => (e instanceof ApplyError || e instanceof ProviderAdminError ? e.code : e));
+  it('apply: EMAIL_TAKEN and INVALID_INPUT', async () => {
+    await applyProvider(pool, input);
+    expect(await codeOf(applyProvider(pool, input))).toBe('EMAIL_TAKEN');
+    expect(await codeOf(applyProvider(pool, { ...input, email: 'a@b.org', name: ' ' }))).toBe('INVALID_INPUT');
+  });
+  it('apply: password over 256 characters is INVALID_INPUT, 256 is fine', async () => {
+    expect(await codeOf(applyProvider(pool, { ...input, password: 'x'.repeat(257) }))).toBe('INVALID_INPUT');
+    expect(await codeOf(applyProvider(pool, { ...input, password: 'x'.repeat(256) }))).toBeNull();
+  });
+  it('admin: unknown provider id is NOT_FOUND for approve and suspend', async () => {
+    const adminId = await makeAdmin();
+    const id = '00000000-0000-0000-0000-000000000000';
+    expect(await codeOf(approveProvider(pool, adminId, id))).toBe('NOT_FOUND');
+    expect(await codeOf(suspendProvider(pool, adminId, id))).toBe('NOT_FOUND');
   });
 });
 

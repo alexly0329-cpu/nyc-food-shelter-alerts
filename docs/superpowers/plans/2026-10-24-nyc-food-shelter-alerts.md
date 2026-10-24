@@ -124,9 +124,9 @@ v1 uses ZIP codes only; NTA support is deferred. `scripts/build-zips.ts` reads t
 
 **Interfaces:**
 - Consumes: `normalizePhone`, `encryptPhone`, `phoneHash`, `zipToCentroid`.
-- Produces: `CONSENT_SCRIPT_VERSION = 'v1-draft'`, `enrollRecipient(db, input: { providerId; phone; channel: 'sms' | 'voice'; language: string; zip: string; method: 'verbal' | 'written'; scriptConfirmed: boolean }): Promise<{ recipientId: string }>` (throws `EnrollError` with code `INVALID_PHONE`, `ZIP_NOT_NYC` or `SCRIPT_NOT_CONFIRMED`), `revokeConsent(db, phoneE164: string): Promise<boolean>`.
+- Produces: `CONSENT_SCRIPT_VERSION = 'v2-draft'`, `enrollRecipient(db, input: { providerId; phone; channel: 'sms' | 'voice'; language: string; zip: string; method: 'verbal' | 'written'; scriptConfirmed: boolean }): Promise<{ recipientId: string }>` (throws `EnrollError` with code `INVALID_PHONE`, `ZIP_NOT_NYC` or `SCRIPT_NOT_CONFIRMED`), `revokeConsent(db, phoneE164: string): Promise<boolean>`.
 
-- [ ] **Step 1: Write failing tests.** Enrolling inserts one recipient and one consent row with `consent_text_version = 'v1-draft'`. `scriptConfirmed: false` throws `SCRIPT_NOT_CONFIRMED` and inserts nothing. ZIP `90210` throws `ZIP_NOT_NYC`. Letters in the phone throw `INVALID_PHONE`. Enrolling the same number twice reuses the recipient and adds a second consent row. Re-enrolling a stopped recipient sets status back to `active` with a new consent row. `revokeConsent` sets `revoked_at` and status `stopped`, returns false for an unknown number. The stored phone column is not the plain number.
+- [ ] **Step 1: Write failing tests.** Enrolling inserts one recipient and one consent row with `consent_text_version = 'v2-draft'`. `scriptConfirmed: false` throws `SCRIPT_NOT_CONFIRMED` and inserts nothing. ZIP `90210` throws `ZIP_NOT_NYC`. Letters in the phone throw `INVALID_PHONE`. Enrolling the same number twice reuses the recipient and adds a second consent row. Re-enrolling a stopped recipient sets status back to `active` with a new consent row. `revokeConsent` sets `revoked_at` and status `stopped`, returns false for an unknown number. The stored phone column is not the plain number.
 - [ ] **Step 2: Run.** Expected: FAIL.
 - [ ] **Step 3: Implement** both in one transaction each.
 - [ ] **Step 4: Run.** Expected: PASS.

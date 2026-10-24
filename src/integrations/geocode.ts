@@ -13,8 +13,13 @@ export async function geocodeAddress(
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return null;
-    const body = (await res.json()) as { features?: Array<{ geometry?: { coordinates?: unknown } }> };
-    const c = body?.features?.[0]?.geometry?.coordinates;
+    const body = (await res.json()) as { features?: Array<{ geometry?: { coordinates?: unknown }; properties?: { match_type?: unknown; confidence?: unknown } }> };
+    const f = body?.features?.[0];
+    // A fallback match is only a rough guess (street or neighborhood); low confidence is not trusted either.
+    if (f?.properties?.match_type === 'fallback') return null;
+    const conf = f?.properties?.confidence;
+    if (typeof conf === 'number' && conf < 0.7) return null;
+    const c = f?.geometry?.coordinates;
     if (!Array.isArray(c)) return null;
     const [lng, lat] = c; // GeoJSON order is [lng, lat]
     if (typeof lng !== 'number' || typeof lat !== 'number' || !Number.isFinite(lng) || !Number.isFinite(lat)) return null;

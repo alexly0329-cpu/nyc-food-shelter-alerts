@@ -2,12 +2,21 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireAdmin } from '../auth/session.js';
 import { withTx } from '../db.js';
-import { approveProvider, suspendProvider } from '../providers/admin.js';
+import { approveProvider, ProviderAdminError, suspendProvider } from '../providers/admin.js';
 import { HttpError, optOut, parse, sessionToken, type ServerDeps } from './util.js';
 
 const idParams = z.object({ id: z.uuid() });
 const providerQuery = z.object({ status: z.enum(['pending', 'approved', 'suspended']).optional() });
 const alertQuery = z.object({ status: z.enum(['needs_review', 'verified', 'rejected']).default('needs_review') });
+
+// Stored as JSON text from the apply form; older rows may hold a bare string. Bounded at 2000 chars by the query.
+function parseContact(raw: string): unknown {
+  try {
+    const v: unknown = JSON.parse(raw);
+    if (v && typeof v === 'object' && !Array.isArray(v)) return v;
+  } catch { /* not JSON */ }
+  return raw.slice(0, 500);
+}
 
 export function adminRoutes(app: FastifyInstance, deps: ServerDeps): void {
   const { db } = deps;
@@ -17,11 +26,12 @@ export function adminRoutes(app: FastifyInstance, deps: ServerDeps): void {
     await admin(req);
     const { status } = parse(providerQuery, req.query);
     const { rows } = await db.query(
-      `SELECT id, name, address, status, tavily_result, created_at FROM providers
-        WHERE ($1::text IS NULL OR status = $1) ORDER BY created_at DESC`,
+      `SELECT p.id, p.name, p.address, p.status, p.tavily_result, p.created_at, left(p.contact, 2000) AS contact,
+              (SELECT u.email FROM provider_users u WHERE u.provider_id = p.id ORDER BY u.created_at LIMIT 1) AS "applicantEmail"
+         FROM providers p WHERE ($1::text IS NULL OR p.status = $1) ORDER BY p.created_at DESC`,
       [status ?? null],
     );
-    return rows;
+    return rows.map((r) => ({ ...r, contact: parseContact(r.contact as string) }));
   });
 
   for (const [action, fn] of [['approve', approveProvider], ['suspend', suspendProvider]] as const) {
@@ -31,7 +41,7 @@ export function adminRoutes(app: FastifyInstance, deps: ServerDeps): void {
       try {
         await fn(db, userId, id);
       } catch (e) {
-        if (e instanceof Error && e.message === 'Provider not found') throw new HttpError(404, 'not_found');
+        if (e instanceof ProviderAdminError && e.code === 'NOT_FOUND') throw new HttpError(404, 'not_found');
         throw e;
       }
       return { ok: true };

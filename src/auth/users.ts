@@ -3,6 +3,7 @@ import { hash, verify } from '@node-rs/argon2';
 import type pg from 'pg';
 
 export const SESSION_HOURS = 12;
+export const MAX_PASSWORD = 256; // bounds argon2 work per request
 
 export const hashPassword = (pw: string) => hash(pw);
 export const hashToken = (t: string) => createHash('sha256').update(t).digest('hex');
@@ -11,6 +12,7 @@ let dummyHash: Promise<string> | undefined;
 
 // Same null for unknown email and wrong password; verify runs either way to even out timing.
 export async function login(db: pg.Pool, email: string, password: string): Promise<{ sessionToken: string } | null> {
+  if (typeof password !== 'string' || password.length > MAX_PASSWORD) return null;
   const { rows } = await db.query('SELECT id, password_hash FROM provider_users WHERE email = $1', [
     email.trim().toLowerCase(),
   ]);
