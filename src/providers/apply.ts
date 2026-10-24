@@ -1,6 +1,6 @@
 import type pg from 'pg';
 import { z } from 'zod';
-import { hashPassword, MAX_PASSWORD } from '../auth/users.js';
+import { EMAIL_RE, hashPassword, MAX_PASSWORD } from '../auth/users.js';
 import { withTx } from '../db.js';
 import { normalizePhone } from '../phone.js';
 
@@ -15,7 +15,7 @@ const schema = z.object({
     return p as string;
   }),
   website: z.string().trim().optional(),
-  email: z.string().trim().toLowerCase().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'email is invalid'),
+  email: z.string().trim().toLowerCase().regex(EMAIL_RE, 'email is invalid'),
   password: z.string().min(10, 'password must be at least 10 characters').max(MAX_PASSWORD, `password must be at most ${MAX_PASSWORD} characters`),
 });
 

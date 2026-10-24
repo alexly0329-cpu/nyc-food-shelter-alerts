@@ -5,6 +5,7 @@ import type pg from 'pg';
 export const SESSION_HOURS = 12;
 export const MAX_PASSWORD = 256; // bounds argon2 work per request
 
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const hashPassword = (pw: string) => hash(pw);
 export const hashToken = (t: string) => createHash('sha256').update(t).digest('hex');
 
@@ -28,4 +29,23 @@ export async function login(db: pg.Pool, email: string, password: string): Promi
   );
   await db.query('DELETE FROM sessions WHERE expires_at < now()'); // lazy cleanup
   return { sessionToken };
+}
+
+/** First-admin bootstrap. Never overwrites an existing user; errors never contain the password. */
+export async function createAdmin(db: pg.Pool, email: string, password: string): Promise<{ id: string }> {
+  const e = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  if (!EMAIL_RE.test(e)) throw new Error('email is invalid');
+  if (typeof password !== 'string' || password.length < 10 || password.length > MAX_PASSWORD) {
+    throw new Error(`password must be 10 to ${MAX_PASSWORD} characters`);
+  }
+  try {
+    const r = await db.query(`INSERT INTO provider_users (email, password_hash, role) VALUES ($1, $2, 'admin') RETURNING id`, [
+      e,
+      await hashPassword(password),
+    ]);
+    return { id: r.rows[0].id as string };
+  } catch (err) {
+    if ((err as { code?: string }).code === '23505') throw new Error(`A user with email ${e} already exists; nothing was changed`);
+    throw err;
+  }
 }

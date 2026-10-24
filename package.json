@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/main.ts",
+    "create-admin": "tsx scripts/create-admin.ts",
     "seed:dev": "tsx scripts/dev-seed.ts",
     "summary": "tsx scripts/daily-summary.ts",
     "db:up": "docker compose up -d --wait",

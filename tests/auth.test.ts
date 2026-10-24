@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { getPool } from '../src/db.js';
 import { applyProvider } from '../src/providers/apply.js';
 import { approveProvider, suspendProvider } from '../src/providers/admin.js';
-import { hashPassword, login } from '../src/auth/users.js';
+import { createAdmin, hashPassword, login } from '../src/auth/users.js';
 import { AuthError, requireAdmin, requireProvider } from '../src/auth/session.js';
 
 const pool = getPool();
@@ -98,5 +98,38 @@ describe('requireAdmin', () => {
     expect(await requireAdmin(pool, a.sessionToken)).toEqual({ userId: adminId });
     expect(await status(requireAdmin(pool, s.sessionToken))).toBe(403);
     expect(await status(requireAdmin(pool, undefined))).toBe(401);
+  });
+});
+
+describe('createAdmin', () => {
+  const PW = 'a-long-enough-password';
+  it('creates an admin who can log in and pass requireAdmin; hash is not the password', async () => {
+    const { id } = await createAdmin(pool, '  Boss@Example.ORG ', PW);
+    const row = (await pool.query('SELECT email, role, provider_id, password_hash FROM provider_users WHERE id = $1', [id])).rows[0];
+    expect(row).toMatchObject({ email: 'boss@example.org', role: 'admin', provider_id: null });
+    expect(row.password_hash).toMatch(/^\$argon2/);
+    expect(row.password_hash).not.toContain(PW);
+    const s = await login(pool, 'boss@example.org', PW);
+    expect(await requireAdmin(pool, s!.sessionToken)).toEqual({ userId: id });
+  });
+  it('refuses a duplicate email and never overwrites the existing password', async () => {
+    await createAdmin(pool, 'boss@example.org', PW);
+    await expect(createAdmin(pool, 'BOSS@example.org', 'another-long-password')).rejects.toThrow(/already exists/);
+    expect(await login(pool, 'boss@example.org', PW)).not.toBeNull();
+    expect(await login(pool, 'boss@example.org', 'another-long-password')).toBeNull();
+    await applyProvider(pool, input);
+    await expect(createAdmin(pool, input.email, PW)).rejects.toThrow(/already exists/);
+  });
+  it('validates email and password length (10 to 256)', async () => {
+    for (const email of ['', 'nope', 'a@b', 'a b@c.org']) await expect(createAdmin(pool, email, PW)).rejects.toThrow(/email/);
+    await expect(createAdmin(pool, 'a@b.org', 'x'.repeat(9))).rejects.toThrow(/password/);
+    await expect(createAdmin(pool, 'a@b.org', 'x'.repeat(257))).rejects.toThrow(/password/);
+    await createAdmin(pool, 'ten@b.org', 'x'.repeat(10));
+    await createAdmin(pool, 'max@b.org', 'x'.repeat(256));
+    expect((await pool.query('SELECT count(*)::int AS n FROM provider_users')).rows[0].n).toBe(2);
+  });
+  it('error messages never contain the password', async () => {
+    const secret = 'short-secret-9';
+    await expect(createAdmin(pool, 'a@b.org', secret.slice(0, 9))).rejects.not.toThrow(secret.slice(0, 9));
   });
 });
