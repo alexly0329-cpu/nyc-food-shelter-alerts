@@ -105,6 +105,22 @@ describe('selectRecipients', () => {
     expect((await select(10)).map((r) => r.id)).toEqual([old.id]);
   });
 
+  it('24h boundary: created exactly now-24h does not exclude; now-24h+1ms excludes', async () => {
+    const exact = await addRecipient(40.71, -74);
+    const inside = await addRecipient(40.72, -74);
+    await addDelivery(exact.id, new Date(NOW.getTime() - 24 * HOUR));
+    await addDelivery(inside.id, new Date(NOW.getTime() - 24 * HOUR + 1));
+    expect((await select(10)).map((r) => r.id)).toEqual([exact.id]);
+  });
+
+  it('a failed delivery within 24h still excludes (Ruling 11)', async () => {
+    const r = await addRecipient(40.71, -74);
+    await pool.query(`INSERT INTO deliveries (alert_id, recipient_id, status, created_at) VALUES ($1, $2, 'failed', $3)`, [
+      alertId, r.id, new Date(NOW.getTime() - HOUR),
+    ]);
+    expect(await select(10)).toEqual([]);
+  });
+
   it('returns all when fewer eligible than cap, [] when none', async () => {
     expect(await select(5)).toEqual([]);
     const a = await addRecipient(40.71, -74);

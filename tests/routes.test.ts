@@ -319,6 +319,21 @@ describe('alerts', () => {
   });
 });
 
+describe('every admin route is gated', () => {
+  const id = '00000000-0000-4000-8000-000000000000';
+  const routes = [
+    ['GET', '/api/admin/providers'], ['POST', `/api/admin/providers/${id}/approve`], ['POST', `/api/admin/providers/${id}/suspend`],
+    ['GET', '/api/admin/alerts'], ['POST', `/api/admin/alerts/${id}/approve`], ['POST', `/api/admin/alerts/${id}/reject`],
+    ['POST', '/api/admin/optout'],
+  ] as const;
+  it.each(routes)('%s %s is 401 without a session and 403 for approved staff', async (method, url) => {
+    const call = (cookie?: string) =>
+      app.inject({ method, url, payload: method === 'POST' ? '{}' : undefined, headers: { ...json, ...(cookie ? { cookie } : {}) } });
+    expect((await call()).statusCode).toBe(401);
+    expect((await call((await staff()).cookie)).statusCode).toBe(403);
+  });
+});
+
 describe('admin provider list details', () => {
   it('includes parsed contact and applicant email, bounded raw fallback, admin only', async () => {
     const a = await admin();
