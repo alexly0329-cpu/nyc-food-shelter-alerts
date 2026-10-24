@@ -1,0 +1,25 @@
+const isTest = process.env.NODE_ENV === 'test' || !!process.env.VITEST;
+
+// Fixed, public, test-only values. Never used outside test mode.
+const TEST_DEFAULTS = {
+  DATABASE_URL: 'postgres://postgres:postgres@localhost:5433/alerts_test',
+  PHONE_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
+  PHONE_HASH_KEY: Buffer.alloc(32, 2).toString('base64'),
+};
+
+function env(name: keyof typeof TEST_DEFAULTS): string {
+  const v = process.env[name] || (isTest ? TEST_DEFAULTS[name] : undefined);
+  if (!v) throw new Error(`Missing required env var ${name}`);
+  return v;
+}
+
+const encKey = env('PHONE_ENCRYPTION_KEY');
+if (Buffer.from(encKey, 'base64').length !== 32) {
+  throw new Error('PHONE_ENCRYPTION_KEY must be 32 bytes, base64-encoded');
+}
+
+export const config = {
+  DATABASE_URL: env('DATABASE_URL'),
+  PHONE_ENCRYPTION_KEY: encKey,
+  PHONE_HASH_KEY: env('PHONE_HASH_KEY'),
+};
