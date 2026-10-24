@@ -1,5 +1,5 @@
 import { createHash, createHmac } from 'node:crypto';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getPool } from '../src/db.js';
 import { enrollRecipient } from '../src/recipients/enroll.js';
 import { handleInbound, handleStatus, isStopKeyword, verifyVonageSignature } from '../src/webhooks/vonage.js';
@@ -9,7 +9,7 @@ const deps = { db: pool };
 const BARE = '17185550142';
 const E164 = '+17185550142';
 const CONFIRM = "You're unsubscribed from NYC food and shelter alerts. No more messages will be sent.";
-const GENERIC = 'NYC food and shelter alerts. Reply STOP to opt out.';
+const GENERIC = 'NYC food and shelter alerts, up to 1 message a day. Msg&data rates may apply. Reply STOP to opt out.';
 
 let providerId: string;
 let seq = 0;
@@ -42,10 +42,13 @@ beforeEach(async () => {
 afterAll(() => pool.end());
 
 describe('isStopKeyword', () => {
-  it.each(['STOP', 'stop', ' Stop ', 'STOP.', 'Stop!', 'STOPALL', 'UNSUBSCRIBE', 'cancel', 'QUIT', 'end'])('true for %j', (t) => {
+  it.each([
+    'STOP', 'stop', ' Stop ', 'STOP.', 'Stop!', 'STOPALL', 'STOP ALL', 'stop all', 'CANCEL ALL', 'OPT OUT', 'opt-out', 'REVOKE',
+    'UNSUBSCRIBE', 'cancel', 'QUIT', 'end', '\uFF33\uFF34\uFF2F\uFF30', 'STOP\u200B', 'Stop\n', 'ALTO', 'PARAR', 'baja', 'CANCELAR',
+  ])('true for %j', (t) => {
     expect(isStopKeyword(t)).toBe(true);
   });
-  it.each(['stopping by at 5', "please don't stop", 'stop the clock', '', 'ENDING', 'STO'])('false for %j', (t) => {
+  it.each(['stopping by at 5', "please don't stop", 'stop the clock', 'stop calling me', '', 'ENDING', 'STO', 'END OF DAY', 'BAJA PRIORIDAD'])('false for %j', (t) => {
     expect(isStopKeyword(t)).toBe(false);
   });
   it('false for non-string', () => {
@@ -92,6 +95,29 @@ describe('handleInbound STOP', () => {
     expect(await dStatus(d)).toBe('failed');
     expect(await rStatus(id)).toBe('stopped');
   });
+  it('still confirms when the delivery update fails, and logs it', async () => {
+    const id = await enroll();
+    await addDelivery(id, 'queued', 'a');
+    const spy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const real = pool.query.bind(pool);
+    const q = vi.spyOn(pool, 'query').mockImplementation(((sql: unknown, ...rest: unknown[]) =>
+      typeof sql === 'string' && sql.includes('UPDATE deliveries') ? Promise.reject(new Error('boom')) : (real as never as (...a: unknown[]) => unknown)(sql, ...rest)) as never);
+    let out = '';
+    try {
+      expect(await handleInbound(deps, { from: BARE, text: 'STOP' })).toEqual({ reply: CONFIRM });
+    } finally {
+      out = spy.mock.calls.map((c) => String(c[0])).join('');
+      q.mockRestore();
+      spy.mockRestore();
+    }
+    expect(out).toContain('"reason":"delivery_update_failed"');
+    expect(await rStatus(id)).toBe('stopped');
+    expect(await activeConsents(id)).toBe(0);
+  });
+  it('a failed revoke propagates', async () => {
+    const bad = { connect: async () => { throw new Error('down'); } } as never;
+    await expect(handleInbound({ db: bad }, { from: BARE, text: 'STOP' })).rejects.toThrow('down');
+  });
   it('does not revoke on "stopping by at 5"', async () => {
     const id = await enroll();
     expect(await handleInbound(deps, { from: BARE, text: 'stopping by at 5' })).toEqual({ reply: null });
@@ -104,8 +130,27 @@ describe('handleInbound HELP / other', () => {
   it('HELP names the enrolling provider and phone', async () => {
     await enroll();
     expect(await handleInbound(deps, { from: BARE, text: ' help! ' })).toEqual({
-      reply: 'Pantry: free food and shelter alerts for NYC. Questions? Call 212-555-0123. Reply STOP to opt out.',
+      reply: 'Pantry: free food and shelter alerts for NYC, up to 1 message a day. Msg&data rates may apply. Questions? Call 212-555-0123. Reply STOP to opt out.',
     });
+  });
+  it('AYUDA is HELP', async () => {
+    await enroll();
+    expect((await handleInbound(deps, { from: BARE, text: 'Ayuda' })).reply).toContain('Pantry: free food');
+  });
+  it('HELP without phone names the contact', async () => {
+    const pid = await mkProvider('Other', JSON.stringify({ contactName: 'Pat  Lee' }));
+    await enroll(E164, pid);
+    expect((await handleInbound(deps, { from: BARE, text: 'HELP' })).reply).toBe(
+      'Other: free food and shelter alerts for NYC, up to 1 message a day. Msg&data rates may apply. Questions? Contact Pat Lee. Reply STOP to opt out.',
+    );
+  });
+  it('HELP caps and collapses provider text', async () => {
+    const pid = await mkProvider(`A\n${'x'.repeat(100)}`, JSON.stringify({ phone: `${'9'.repeat(100)}` }));
+    await enroll(E164, pid);
+    const { reply } = await handleInbound(deps, { from: BARE, text: 'HELP' });
+    expect(reply).toContain(`A ${'x'.repeat(58)}: free food`);
+    expect(reply).toContain(`Call ${'9'.repeat(40)}. Reply`);
+    expect(reply).not.toContain('\n');
   });
   it('HELP survives odd contact shapes', async () => {
     for (const c of ['Pat', 'null', '[1]', '{"phone":5}', '{}']) {
@@ -113,7 +158,7 @@ describe('handleInbound HELP / other', () => {
       await pool.query('TRUNCATE deliveries, consents, recipients CASCADE');
       await enroll(E164, pid);
       const { reply } = await handleInbound(deps, { from: BARE, text: 'HELP' });
-      expect(reply).toMatch(/^Other: free food and shelter alerts for NYC\..*Reply STOP to opt out\.$/);
+      expect(reply).toMatch(/^Other: free food and shelter alerts for NYC, up to 1 message a day\..*Reply STOP to opt out\.$/);
     }
   });
   it('HELP from unknown or bad number is generic', async () => {
