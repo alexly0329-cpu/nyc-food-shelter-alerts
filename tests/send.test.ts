@@ -151,6 +151,17 @@ describe('runSendJob', () => {
     expect((await state(id)).send_state).toBe('pending');
   });
 
+  it('a suspended provider\'s verified alert sends nothing and ends expired', async () => {
+    await addRecipient(40.71);
+    const id = await addAlert();
+    await pool.query("UPDATE providers SET status = 'suspended' WHERE id = $1", [providerId]);
+    const { sender, calls } = fakeSender();
+    await runSendJob(mk(sender), id);
+    expect(calls).toHaveLength(0);
+    expect((await state(id)).send_state).toBe('expired');
+    expect(await deliveries(id)).toHaveLength(0);
+  });
+
   it('expires an alert past ends_at even if urgent, sending nothing', async () => {
     await addRecipient(40.71);
     const id = await addAlert({ urgent: true });

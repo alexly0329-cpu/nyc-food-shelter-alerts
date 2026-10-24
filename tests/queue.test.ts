@@ -21,11 +21,13 @@ describe('createQueue', () => {
     const runAt = new Date('2026-06-01T12:00:00Z');
     await q.enqueue('alert-1', runAt);
     expect(boss.send).toHaveBeenCalledTimes(1);
-    const [name, data, opts] = boss.send.mock.calls[0] as unknown as [string, unknown, { startAfter: Date; retryLimit: number }];
+    const [name, data, opts] = boss.send.mock.calls[0] as unknown as [string, unknown, { startAfter: Date; retryLimit: number; retryDelay: number; retryBackoff: boolean }];
     expect(name).toBe('send-alert');
     expect(data).toEqual({ alertId: 'alert-1' });
     expect(opts.startAfter).toEqual(runAt);
     expect(opts.retryLimit).toBeGreaterThan(0);
+    expect(opts.retryDelay).toBeGreaterThan(0);
+    expect(opts.retryBackoff).toBe(true);
   });
 
   it('start creates the queue and registers a single-concurrency worker; stop stops boss', async () => {

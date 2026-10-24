@@ -145,6 +145,23 @@ describe('auth and sessions', () => {
     expect((await get('/api/me')).statusCode).toBe(401);
   });
 
+  it('encoded /api paths are still gated and get no-store/nosniff', async () => {
+    const id = '00000000-0000-4000-8000-000000000000';
+    for (const url of ['/%61pi/logout', `/%61pi/admin/providers/${id}/approve`]) {
+      const r = await app.inject({ method: 'POST', url, payload: 'x', headers: { 'content-type': 'text/plain' } });
+      expect(r.statusCode, url).toBe(415);
+      expect(r.headers['cache-control']).toBe('no-store');
+    }
+    const g = await get('/%61pi/alerts');
+    expect(g.statusCode).toBe(401);
+    expect(g.headers['cache-control']).toBe('no-store');
+    expect(g.headers['x-content-type-options']).toBe('nosniff');
+    expect((await get('/nope')).statusCode).toBe(404);
+    const p = await mkProvider('approved');
+    const ok = await app.inject({ method: 'POST', url: '/api/login', payload: JSON.stringify({ email: p.email, password: PW }), headers: { 'content-type': 'application/json; charset=utf-8' } });
+    expect(ok.statusCode).toBe(200);
+  });
+
   it('non-JSON content type on a POST /api route is 415', async () => {
     const r = await app.inject({ method: 'POST', url: '/api/login', payload: 'email=a', headers: { 'content-type': 'application/x-www-form-urlencoded' } });
     expect(r.statusCode).toBe(415);
@@ -326,6 +343,20 @@ describe('admin', () => {
     expect(enqueue.mock.calls[0][0]).toBe(id);
     expect((await pool.query('SELECT verification_status FROM alerts WHERE id = $1', [id])).rows[0].verification_status).toBe('verified');
     expect((await pool.query(`SELECT actor_id FROM audit_log WHERE action = 'alert.approve' AND target_id = $1`, [id])).rows[0].actor_id).toBe(a.id);
+  });
+
+  it('suspended provider: alert approve is 409 provider_not_approved, nothing enqueued; list shows status', async () => {
+    const a = await admin();
+    const p = await mkProvider('approved');
+    const id = await mkNeedsReview(p.providerId, true);
+    await pool.query(`UPDATE providers SET status = 'suspended' WHERE id = $1`, [p.providerId]);
+    const list = (await get('/api/admin/alerts', a.cookie)).json() as Array<{ providerName: string; providerStatus: string }>;
+    expect(list[0]).toMatchObject({ providerName: 'Test Pantry', providerStatus: 'suspended' });
+    const r = await post(`/api/admin/alerts/${id}/approve`, {}, a.cookie);
+    expect(r.statusCode).toBe(409);
+    expect(r.json().error).toBe('provider_not_approved');
+    expect(enqueue).not.toHaveBeenCalled();
+    expect((await pool.query('SELECT verification_status FROM alerts WHERE id = $1', [id])).rows[0].verification_status).toBe('needs_review');
   });
 
   it('concurrent approvals enqueue once', async () => {

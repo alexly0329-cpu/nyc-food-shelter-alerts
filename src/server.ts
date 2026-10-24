@@ -29,7 +29,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   });
 
   app.addHook('onRequest', async (req, reply) => {
-    if (!req.url.startsWith('/api/')) return;
+    // Match on the routed path: the router decodes the URL, so `/%61pi/...` reaches /api routes.
+    if (!req.routeOptions?.url?.startsWith('/api/')) return;
     reply.header('x-content-type-options', 'nosniff').header('cache-control', 'no-store');
     // Simple CSRF defense next to SameSite=Lax: a cross-site form cannot send this content type.
     if (req.method === 'POST' && !/^application\/json\b/i.test(req.headers['content-type'] ?? '')) {

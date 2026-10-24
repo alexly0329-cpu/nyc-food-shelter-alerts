@@ -10,7 +10,7 @@ export interface BossLike {
   start(): Promise<unknown>;
   stop(): Promise<void>;
   createQueue(name: string): Promise<void>;
-  send(name: string, data: object, options: { startAfter: Date; retryLimit: number }): Promise<string | null>;
+  send(name: string, data: object, options: { startAfter: Date; retryLimit: number; retryDelay: number; retryBackoff: boolean }): Promise<string | null>;
   work(name: string, options: { localConcurrency: number }, handler: (jobs: Array<{ data: { alertId: string } }>) => Promise<void>): Promise<string>;
   on(event: 'error', fn: (e: Error) => void): unknown;
 }
@@ -25,7 +25,7 @@ export interface QueueDeps {
 export function createQueue(deps: QueueDeps, boss: BossLike = new PgBoss(config.DATABASE_URL) as unknown as BossLike) {
   const enqueue = async (alertId: string, runAt: Date): Promise<void> => {
     // A retry is safe: runSendJob is idempotent (claim columns, at-most-once per delivery).
-    await boss.send(QUEUE, { alertId }, { startAfter: runAt, retryLimit: 3 });
+    await boss.send(QUEUE, { alertId }, { startAfter: runAt, retryLimit: 3, retryDelay: 30, retryBackoff: true });
   };
   boss.on('error', (e) => console.error('pg-boss error:', e.message));
   return {

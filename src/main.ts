@@ -5,6 +5,9 @@ import { getPool, migrate } from './db.js';
 import { createQueue } from './queue.js';
 import { buildServer } from './server.js';
 
+if (!process.env.VONAGE_SIGNATURE_SECRET) {
+  console.warn('WARNING: VONAGE_SIGNATURE_SECRET is not set; every Vonage webhook will be rejected (401), so STOP replies will not be processed.');
+}
 const pool = getPool();
 await migrate(pool);
 const sender = createVonageSender();

@@ -57,12 +57,18 @@ export async function runSendJob(deps: SendJobDeps, alertId: string): Promise<vo
 
   const found = await db.query(
     `SELECT a.address, a.message, a.starts_at, a.ends_at, a.urgent, a.capacity_cap, a.lat, a.lng,
-            a.verification_status, a.send_state, p.name AS provider_name
+            a.verification_status, a.send_state, p.name AS provider_name, p.status AS provider_status
      FROM alerts a JOIN providers p ON p.id = a.provider_id WHERE a.id = $1`,
     [alertId],
   );
   const alert = found.rows[0];
   if (!alert || alert.verification_status !== 'verified' || alert.send_state === 'sent' || alert.send_state === 'expired') return;
+
+  // Suspension is the kill switch: an alert queued before the suspension must not go out.
+  if (alert.provider_status !== 'approved') {
+    await db.query("UPDATE alerts SET send_state = 'expired' WHERE id = $1 AND send_state IN ('pending', 'sending')", [alertId]);
+    return;
+  }
 
   const failUnsent = () =>
     db.query(

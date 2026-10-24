@@ -22,7 +22,7 @@ export async function alertTotals(db: Pool, providerId: string): Promise<AlertTo
     `SELECT a.id AS "alertId", a.message AS title, a.address, a.service_type AS "serviceType",
             a.send_state AS status, a.verification_status AS verification,
             a.starts_at AS "startsAt", a.ends_at AS "endsAt", a.capacity_cap AS "capacityCap",
-            count(d.id)::int AS texted,
+            (count(d.id) FILTER (WHERE d.claimed_at IS NOT NULL OR d.vonage_id IS NOT NULL))::int AS texted,
             (count(d.id) FILTER (WHERE d.status = 'delivered'))::int AS delivered,
             (count(d.id) FILTER (WHERE d.status = 'failed'))::int AS failed,
             (count(d.id) FILTER (WHERE d.status = 'stopped'))::int AS stopped
