@@ -301,6 +301,78 @@ describe('runSendJob', () => {
     expect(await deliveries(id2)).toHaveLength(6);
   });
 
+  it('two alerts selecting at once never share a recipient', async () => {
+    for (let i = 0; i < 6; i++) await addRecipient(40.71 + i / 100);
+    const id1 = await addAlert({ cap: 6 });
+    const id2 = await addAlert({ cap: 6 });
+    const f = fakeSender(() => new Promise((r) => setTimeout(r, 3)));
+    await Promise.all([runSendJob(mk(f.sender), id1), runSendJob(mk(f.sender), id2)]);
+    const all = (await pool.query('SELECT recipient_id FROM deliveries')).rows.map((r) => r.recipient_id);
+    expect(all).toHaveLength(6);
+    expect(new Set(all).size).toBe(6);
+    expect(f.calls).toHaveLength(6);
+    expect(new Set(f.calls.map((c) => c.to)).size).toBe(6);
+  });
+
+  it('a row claimed by a crashed run (claimed_at set, no vonage_id) is never resent, alert still sent', async () => {
+    const r = await addRecipient(40.71);
+    const id = await addAlert();
+    await pool.query("UPDATE alerts SET send_state = 'sending' WHERE id = $1", [id]);
+    await pool.query('INSERT INTO deliveries (alert_id, recipient_id, claimed_at) VALUES ($1, $2, $3)', [id, r.id, NOW]);
+    const { sender, calls } = fakeSender();
+    await runSendJob(mk(sender), id);
+    expect(calls).toHaveLength(0);
+    expect((await deliveries(id))[0]).toMatchObject({ status: 'queued', vonage_id: null });
+    expect((await state(id)).send_state).toBe('sent');
+  });
+
+  it('a failed id store after a successful send is not recorded as failed, and the rest still go', async () => {
+    const a = await addRecipient(40.71);
+    await addRecipient(40.72);
+    const id = await addAlert();
+    let broke = false;
+    const flaky = {
+      query: (sql: string, ...rest: unknown[]) => {
+        if (!broke && sql.includes('SET vonage_id = $2')) { broke = true; throw new Error('store down'); }
+        return (pool.query as any)(sql, ...rest);
+      },
+      connect: pool.connect.bind(pool),
+    } as unknown as typeof pool;
+    const { sender, calls } = fakeSender();
+    await runSendJob({ ...mk(sender), db: flaky }, id);
+    expect(calls).toHaveLength(2);
+    const rows = await deliveries(id);
+    expect(rows.every((r) => r.status === 'queued' && r.vonage_id !== null)).toBe(true); // retry stored it
+    expect(a.id).toBeTruthy();
+  });
+
+  it('a throwing send never overwrites a stopped status', async () => {
+    const a = await addRecipient(40.71);
+    const id = await addAlert();
+    const { sender } = fakeSender(async () => {
+      await pool.query("UPDATE deliveries SET status = 'stopped' WHERE alert_id = $1", [id]);
+      throw new Error('x');
+    });
+    await runSendJob(mk(sender), id);
+    expect((await deliveries(id))[0]).toMatchObject({ recipient_id: a.id, status: 'stopped' });
+  });
+
+  it('a revoke landing right before the claim wins (between sends)', async () => {
+    const a = await addRecipient(40.71);
+    const b = await addRecipient(40.72);
+    const id = await addAlert();
+    const f = fakeSender();
+    let done = false;
+    // sleep runs after each send, immediately before the next claim
+    await runSendJob({ ...mk(f.sender), sleep: async () => {
+      if (done) return;
+      done = true;
+      await revokeConsent(pool, f.calls[0].to === a.phone ? b.phone : a.phone);
+    } }, id);
+    expect(f.calls).toHaveLength(1);
+    expect((await deliveries(id)).filter((r) => r.status === 'stopped')).toHaveLength(1);
+  });
+
   it('logs no phone numbers or message bodies', async () => {
     const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
     const a = await addRecipient(40.71);

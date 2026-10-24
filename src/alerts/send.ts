@@ -45,9 +45,9 @@ const LOCALES: Record<string, string> = {
 /** Text-to-speech locale only; never changes the text. */
 export const voiceLocale = (language: string): string => LOCALES[language] ?? 'en-US';
 
-// vonage_id marker while a send is in flight: claims the row so no parallel run sends it too.
-// If a process dies mid-send the row keeps it, so the recipient is never messaged twice (at-most-once).
-const IN_FLIGHT = 'claimed';
+// Serializes recipient selection across alerts: under READ COMMITTED another alert's uncommitted
+// queued rows are invisible to the 24h exclusion, so two alerts could otherwise pick the same person.
+const SELECT_LOCK = 7283002;
 
 const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -66,7 +66,7 @@ export async function runSendJob(deps: SendJobDeps, alertId: string): Promise<vo
 
   const failUnsent = () =>
     db.query(
-      "UPDATE deliveries SET status = 'failed' WHERE alert_id = $1 AND status = 'queued' AND vonage_id IS NULL",
+      "UPDATE deliveries SET status = 'failed' WHERE alert_id = $1 AND status = 'queued' AND vonage_id IS NULL AND claimed_at IS NULL",
       [alertId],
     );
 
@@ -84,6 +84,7 @@ export async function runSendJob(deps: SendJobDeps, alertId: string): Promise<vo
   // Claim + select + insert in one transaction: the alert is selected exactly once, ever.
   // A concurrent run blocks on the row lock, then sees 'sending' and skips straight to the send loop.
   await withTx(db, async (c) => {
+    await c.query('SELECT pg_advisory_xact_lock($1)', [SELECT_LOCK]);
     const claim = await c.query(
       "UPDATE alerts SET send_state = 'sending' WHERE id = $1 AND send_state = 'pending' RETURNING id",
       [alertId],
@@ -101,7 +102,7 @@ export async function runSendJob(deps: SendJobDeps, alertId: string): Promise<vo
   const unsent = await db.query(
     `SELECT d.id, d.recipient_id, r.channel, r.language, r.phone
      FROM deliveries d JOIN recipients r ON r.id = d.recipient_id
-     WHERE d.alert_id = $1 AND d.status = 'queued' AND d.vonage_id IS NULL
+     WHERE d.alert_id = $1 AND d.status = 'queued' AND d.vonage_id IS NULL AND d.claimed_at IS NULL
      ORDER BY d.created_at, d.id`,
     [alertId],
   );
@@ -114,31 +115,43 @@ export async function runSendJob(deps: SendJobDeps, alertId: string): Promise<vo
       await failUnsent();
       break;
     }
-    // A STOP that arrived after selection wins.
-    const ok = await db.query(
-      `SELECT 1 FROM recipients r WHERE r.id = $1 AND r.status = 'active'
-         AND EXISTS (SELECT 1 FROM consents c WHERE c.recipient_id = r.id AND c.revoked_at IS NULL)`,
-      [row.recipient_id],
+    // Claim and consent re-check in one statement: a STOP that lands after selection always wins.
+    const claimed = await db.query(
+      `UPDATE deliveries SET claimed_at = $2
+       WHERE id = $1 AND claimed_at IS NULL AND vonage_id IS NULL AND status = 'queued'
+         AND EXISTS (SELECT 1 FROM recipients r WHERE r.id = deliveries.recipient_id AND r.status = 'active'
+           AND EXISTS (SELECT 1 FROM consents c WHERE c.recipient_id = r.id AND c.revoked_at IS NULL))
+       RETURNING id`,
+      [row.id, deps.now()],
     );
-    if (!ok.rowCount) {
-      await db.query("UPDATE deliveries SET status = 'stopped' WHERE id = $1 AND status = 'queued' AND vonage_id IS NULL", [row.id]);
+    if (!claimed.rowCount) {
+      // Not claimable: stopped recipient (mark it) or another run owns it (no-op: the guards fail).
+      await db.query(
+        "UPDATE deliveries SET status = 'stopped' WHERE id = $1 AND status = 'queued' AND vonage_id IS NULL AND claimed_at IS NULL",
+        [row.id],
+      );
       continue;
     }
-    const claimed = await db.query(
-      "UPDATE deliveries SET vonage_id = $2 WHERE id = $1 AND status = 'queued' AND vonage_id IS NULL RETURNING id",
-      [row.id, IN_FLIGHT],
-    );
-    if (!claimed.rowCount) continue; // another run owns this one
 
+    let id: string | undefined;
     try {
       const to = decryptPhone(row.phone);
-      const sent = row.channel === 'voice'
+      id = (row.channel === 'voice'
         ? await sender.startCall(to, text('voice'), voiceLocale(row.language))
-        : await sender.sendSms(to, text('sms'));
-      await db.query('UPDATE deliveries SET vonage_id = $2 WHERE id = $1', [row.id, sent.id]);
+        : await sender.sendSms(to, text('sms'))).id;
     } catch {
       // Deliberately no error text: it could carry the number or message body.
-      await db.query("UPDATE deliveries SET status = 'failed', vonage_id = NULL WHERE id = $1", [row.id]);
+    }
+    if (id === undefined) {
+      await db.query("UPDATE deliveries SET status = 'failed' WHERE id = $1 AND status = 'queued'", [row.id]);
+    } else {
+      // The message went out: never record it as failed. Retry the id store once, else leave the row claimed.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          await db.query("UPDATE deliveries SET vonage_id = $2 WHERE id = $1 AND status = 'queued'", [row.id, id]);
+          break;
+        } catch { /* retry once, then continue */ }
+      }
     }
     await sleep(delayMs);
   }
