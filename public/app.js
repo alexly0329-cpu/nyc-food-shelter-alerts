@@ -1,4 +1,4 @@
-import { alertStatusLabel, errorMessage, toIso } from '/lib.js';
+import { alertStatusLabel, errorMessage, friendlyError, toIso, touchesQuietHours } from '/lib.js';
 
 const $ = (s) => document.querySelector(s);
 const views = ['login', 'apply', 'alerts', 'new', 'enroll'];
@@ -102,7 +102,9 @@ function setMe(m) {
   $('#adminNote').hidden = m?.role !== 'admin';
   paint();
 }
-function signedOut() { setMe(null); location.hash = 'login'; route(); }
+// A full reload is the one reliable way to drop every typed value, draft, alert list and key
+// from the page, so the next person on a shared computer starts clean.
+function signedOut() { location.replace('/#login'); location.reload(); }
 
 // ---------- login / apply / logout ----------
 $('#loginForm').addEventListener('submit', async (e) => {
@@ -144,7 +146,7 @@ $('#signout').addEventListener('click', async () => {
 // ---------- alerts list ----------
 async function showAlerts() {
   const list = $('#alertList');
-  if (me?.role === 'admin') return list.replaceChildren();
+  if (!canSend()) return list.replaceChildren(); // admin or not approved: the banner explains, the API would 403
   list.replaceChildren(el('p', { class: 'empty', role: 'status' }, 'Loading your alerts…'));
   const r = await api('GET', '/api/alerts');
   if (r.status === 401) return signedOut();
@@ -200,8 +202,7 @@ function paint() {
   const t = new Date($('#start').value);
   const time = isNaN(t) ? '' : t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   const e = new Date($('#end').value);
-  const quietH = (d) => d.getHours() >= 21 || d.getHours() < 8;
-  $('#quiet').hidden = $('#urgent').checked || !(quietH(t) || quietH(e));
+  $('#quiet').hidden = $('#urgent').checked || !touchesQuietHours(t, e);
   $('#bubble').textContent = `${me?.providerName ?? ''}: ${m} ${$('#addr').value}, ${time}. Reply STOP to opt out.`;
 }
 $('#minus').addEventListener('click', () => { cap = Math.max(5, cap - 5); paint(); });
@@ -211,21 +212,26 @@ $('#plus').addEventListener('click', () => { cap = Math.min(500, cap + 5); paint
 $('#alertForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   clearErr('#alertErr');
+  const startsAt = toIso($('#start').value), endsAt = toIso($('#end').value);
+  if (!startsAt || !endsAt) return showErr('#alertErr', 'Pick a start and end time.');
+  if (endsAt <= startsAt) return showErr('#alertErr', 'The end time must be after the start time.');
+  if (new Date(endsAt) <= new Date()) return showErr('#alertErr', 'The end time must be in the future.');
   const btn = $('#alertBtn');
   btn.disabled = true;
   const r = await api('POST', '/api/alerts', {
     serviceType: document.querySelector('input[name=svc]:checked').value,
-    address: $('#addr').value, startsAt: toIso($('#start').value), endsAt: toIso($('#end').value),
+    address: $('#addr').value, startsAt, endsAt,
     message: $('#msg').value, capacityCap: cap, urgent: $('#urgent').checked, idempotencyKey: idemKey,
   });
   btn.disabled = false;
   if (r.status === 401) return signedOut();
-  if (r.status !== 201) return showErr('#alertErr', errorMessage(r.data?.error ?? ''));
+  if (r.status === 403) return boot(); // suspended mid-session: the banner replaces the form
+  if (r.status !== 201) return showErr('#alertErr', friendlyError(r.data?.error ?? '', r.data?.message));
   idemKey = crypto.randomUUID();
   e.target.reset();
   cap = 60;
   defaultTimes();
-  toast(r.data?.status === 'needs_review' ? "Alert saved but not sent. We couldn't confirm the address." : "Alert posted. We're checking the address first.");
+  toast(r.data?.status === 'needs_review' ? "Alert saved but not sent. We couldn't confirm the address." : "Alert posted. It's queued to send.");
   location.hash = 'alerts';
 });
 
@@ -243,6 +249,7 @@ $('#enrollForm').addEventListener('submit', async (e) => {
   });
   gate();
   if (r.status === 401) return signedOut();
+  if (r.status === 403) return boot();
   if (r.status !== 201) return showErr('#enrollErr', errorMessage(r.data?.error ?? ''));
   e.target.reset();
   gate();
@@ -254,7 +261,7 @@ async function boot(dest) {
   const r = await api('GET', '/api/me');
   if (r.status === 200 && r.data) {
     setMe(r.data);
-    if (dest) location.hash = dest;
+    if (dest && location.hash.slice(1) !== dest) { location.hash = dest; return; } // hashchange runs route()
   } else setMe(null);
   route();
 }

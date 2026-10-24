@@ -41,6 +41,12 @@ describe('static serving', () => {
       expect(r.headers['content-security-policy']).toBe(CSP);
     });
   }
+  it('unknown non-API path is a 404 that still carries CSP and nosniff', async () => {
+    const r = await app.inject('/nope');
+    expect(r.statusCode).toBe(404);
+    expect(r.headers['content-security-policy']).toBe(CSP);
+    expect(r.headers['x-content-type-options']).toBe('nosniff');
+  });
   it('unknown /api path is a JSON 404', async () => {
     const r = await app.inject('/api/does-not-exist');
     expect(r.statusCode).toBe(404);
@@ -68,7 +74,18 @@ describe('CSP-clean source', () => {
     expect(html).not.toMatch(/\sstyle\s*=/i);
     expect(html).not.toMatch(/\son[a-z]+\s*=/i);
   });
-  it('JS never uses innerHTML', () => {
-    for (const f of ['public/app.js', 'public/lib.js']) expect(readFileSync(f, 'utf8')).not.toContain('innerHTML');
+  it('JS uses no HTML-string or eval sinks', () => {
+    for (const f of ['public/app.js', 'public/lib.js']) {
+      expect(readFileSync(f, 'utf8')).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/);
+    }
+  });
+  it('every sign-out and 401 path goes through a full reload that clears UI state', () => {
+    const js = readFileSync('public/app.js', 'utf8');
+    expect(js).toMatch(/function signedOut\(\)[^\n]*location\.reload\(\)/);
+    expect(js).toMatch(/\$\('#signout'\)[\s\S]*?api\('POST', '\/api\/logout', \{\}\);\s*signedOut\(\)/);
+    expect(js.match(/status === 401\) return signedOut\(\)/g)?.length).toBe(3);
+  });
+  it('radio groups have legends', () => {
+    expect(html.match(/<fieldset>\s*<legend\b/g)?.length).toBe(html.match(/<fieldset>/g)?.length);
   });
 });

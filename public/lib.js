@@ -8,10 +8,36 @@ const MESSAGES = {
   PROVIDER_NOT_APPROVED: "Your organization isn't approved to send alerts yet.",
   invalid_credentials: 'Email or password is wrong.',
   email_taken: 'That email already has an application.',
+  403: "Your account can't do that right now. Check the notice at the top of the Alerts page.",
 };
 
 export function errorMessage(code) {
   return Object.hasOwn(MESSAGES, code) ? MESSAGES[code] : 'Something went wrong. Try again.';
+}
+
+// Server validation texts that are fixed strings written by us, so safe to show as-is.
+const SAFE_SERVER_TEXT = new Set([
+  'endsAt must be after startsAt',
+  'endsAt must be in the future',
+  'startsAt and endsAt must be valid dates',
+  'message must be 1-100 characters',
+  'capacityCap must be an integer 5-500',
+  'address required',
+]);
+export function friendlyError(code, message) {
+  return SAFE_SERVER_TEXT.has(message) ? message : errorMessage(code);
+}
+
+/** True when [start, end] overlaps any 9 pm to 8 am window (Dates, local time). */
+export function touchesQuietHours(start, end) {
+  if (isNaN(start) || isNaN(end) || end <= start) return false;
+  const day = new Date(start.getFullYear(), start.getMonth(), start.getDate() - 1);
+  for (; day < end; day.setDate(day.getDate() + 1)) {
+    const qs = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 21);
+    const qe = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1, 8);
+    if (start < qe && end > qs) return true;
+  }
+  return false;
 }
 
 export function alertStatusLabel(a) {

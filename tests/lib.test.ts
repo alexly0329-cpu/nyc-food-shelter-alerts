@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alertStatusLabel, errorMessage, toIso } from '../public/lib.js';
+import { alertStatusLabel, errorMessage, friendlyError, toIso, touchesQuietHours } from '../public/lib.js';
 
 describe('errorMessage', () => {
   const cases: Record<string, string> = {
@@ -11,6 +11,7 @@ describe('errorMessage', () => {
     PROVIDER_NOT_APPROVED: "Your organization isn't approved to send alerts yet.",
     invalid_credentials: 'Email or password is wrong.',
     email_taken: 'That email already has an application.',
+    403: "Your account can't do that right now. Check the notice at the top of the Alerts page.",
     nope: 'Something went wrong. Try again.',
     '': 'Something went wrong. Try again.',
   };
@@ -37,5 +38,26 @@ describe('toIso', () => {
   it('returns empty string for empty/invalid input', () => {
     expect(toIso('')).toBe('');
     expect(toIso('garbage')).toBe('');
+  });
+});
+
+describe('friendlyError', () => {
+  it('shows known safe server text', () => expect(friendlyError('invalid_input', 'endsAt must be after startsAt')).toBe('endsAt must be after startsAt'));
+  it('ignores unknown server text', () => expect(friendlyError('invalid_input', 'pg: secret')).toBe(errorMessage('invalid_input')));
+  it('falls back without a message', () => expect(friendlyError('PROVIDER_NOT_APPROVED', undefined)).toBe(errorMessage('PROVIDER_NOT_APPROVED')));
+});
+
+describe('touchesQuietHours', () => {
+  const t = (d: number, h: number, m = 0) => new Date(2026, 5, d, h, m);
+  it('daytime is not quiet', () => expect(touchesQuietHours(t(1, 10), t(1, 18))).toBe(false));
+  it('ends exactly at 9 pm is not quiet', () => expect(touchesQuietHours(t(1, 17), t(1, 21))).toBe(false));
+  it('starts at 8 am is not quiet', () => expect(touchesQuietHours(t(1, 8), t(1, 12))).toBe(false));
+  it('end inside window', () => expect(touchesQuietHours(t(1, 19), t(1, 22))).toBe(true));
+  it('start inside window (early morning)', () => expect(touchesQuietHours(t(1, 6), t(1, 10))).toBe(true));
+  it('8 pm to 9 am next day spans the window', () => expect(touchesQuietHours(t(1, 20), t(2, 9))).toBe(true));
+  it('9 am to 8 pm next day spans the window', () => expect(touchesQuietHours(t(1, 9), t(2, 20))).toBe(true));
+  it('invalid or reversed is false', () => {
+    expect(touchesQuietHours(new Date(NaN), t(1, 1))).toBe(false);
+    expect(touchesQuietHours(t(1, 10), t(1, 9))).toBe(false);
   });
 });
