@@ -455,15 +455,25 @@ describe('runSendJob', () => {
   });
 
   it('logs no phone numbers or message bodies', async () => {
-    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
+    const out: string[] = [];
+    const spy = vi.spyOn(process.stdout, 'write').mockImplementation(((c: unknown) => { out.push(String(c)); return true; }) as never);
     const a = await addRecipient(40.71);
     await addRecipient(40.72);
     const id = await addAlert();
     const { sender } = fakeSender((c) => { if (c.to === a.phone) throw new Error(`fail ${c.to} ${c.text}`); });
-    await runSendJob(mk(sender), id);
-    const out = spies.flatMap((s) => s.mock.calls).map((args) => args.map(String).join(' ')).join('\n');
-    expect(out).not.toMatch(/555|Free hot meals/);
+    try {
+      await runSendJob(mk(sender), id);
+    } finally { spy.mockRestore(); }
+    const logged = out.join('');
+    expect(logged).toContain('send_failed'); // the spy sees the real log line
     const stored = JSON.stringify(await deliveries(id));
-    expect(stored).not.toMatch(/555|Free hot meals|fail \+/);
+    for (const text of [logged, stored]) {
+      for (const phone of phones.values()) {
+        expect(text).not.toContain(phone);
+        expect(text).not.toContain(phone.slice(1));
+      }
+      expect(text).not.toContain(MSG);
+      expect(text).not.toContain('fail +');
+    }
   });
 });

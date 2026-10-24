@@ -11,6 +11,10 @@ const HOUR = 3_600_000;
 const SECRET = 'whsec-test';
 const PW = 'correct horse battery';
 const PHONE = '(718) 555-0142';
+// Exact forms only: short digit regexes false-match random UUIDs in JSON bodies.
+const expectNoPhone = (body: string) => {
+  for (const f of ['+17185550142', '17185550142', '7185550142', '(718) 555-0142', '718-555-0142']) expect(body).not.toContain(f);
+};
 
 const verifiedTavily = () => ({
   search: vi.fn(async (_q: string) => ({ results: [{ title: 'Test Pantry', content: 'Test Pantry at 123 Main Street, Brooklyn', url: 'https://x.test' }] })),
@@ -209,7 +213,7 @@ describe('enroll', () => {
     const r = await post('/api/enroll', enrollBody(), s.cookie);
     expect(r.statusCode).toBe(201);
     expect(r.json()).toEqual({ ok: true });
-    expect(r.body).not.toMatch(/718|555|0142/);
+    expectNoPhone(r.body);
   });
 
   it('scriptConfirmed false is 400 SCRIPT_NOT_CONFIRMED; non-NYC zip 400 ZIP_NOT_NYC', async () => {
@@ -284,7 +288,7 @@ describe('alerts', () => {
     expect(rows.find((x) => x.alertId === ra)).toMatchObject({ texted: 1, delivered: 1 });
     expect(rows.find((x) => x.alertId === unknown)).toMatchObject({ texted: 1, delivered: 0 });
     expect(r.body).not.toContain(rec);
-    expect(r.body).not.toMatch(/718|0142/);
+    expectNoPhone(r.body);
     const rBrows = (await get('/api/alerts', b.cookie)).json() as Array<{ alertId: string }>;
     expect(rBrows.map((x) => x.alertId)).toEqual([rb]);
   });
