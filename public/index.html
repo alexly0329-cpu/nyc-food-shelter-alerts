@@ -149,6 +149,15 @@
     <p class="err" id="enrollErr" role="alert" tabindex="-1" hidden></p>
     <button class="btn" type="submit" id="enrollBtn" disabled>Enroll person</button>
   </form>
+
+  <form id="optoutForm" autocomplete="off">
+    <h2>Someone asked to stop?</h2>
+    <p class="hint">Enter their number to end all messages to it. This works for anyone in the network.</p>
+    <div><label for="optPh">Mobile number</label><input id="optPh" type="tel" inputmode="tel" autocomplete="off" placeholder="(718) 555-0142" required></div>
+    <p class="err" id="optErr" role="alert" tabindex="-1" hidden></p>
+    <p class="banner" id="optOk" role="status" hidden>Done. We won't message that number again.</p>
+    <button class="btn plain" type="submit" id="optBtn">Stop messages to this number</button>
+  </form>
 </main>
 
 <div class="toast" id="toast" role="status" hidden></div>

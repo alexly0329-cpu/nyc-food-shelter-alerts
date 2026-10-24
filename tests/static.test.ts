@@ -83,7 +83,17 @@ describe('CSP-clean source', () => {
     const js = readFileSync('public/app.js', 'utf8');
     expect(js).toMatch(/function signedOut\(\)[^\n]*location\.reload\(\)/);
     expect(js).toMatch(/\$\('#signout'\)[\s\S]*?api\('POST', '\/api\/logout', \{\}\);\s*signedOut\(\)/);
-    expect(js.match(/status === 401\) return signedOut\(\)/g)?.length).toBe(3);
+    expect(js.match(/status === 401\) return signedOut\(\)/g)?.length).toBe(4);
+  });
+  it('enroll view has a separate opt-out section that never keeps the number', () => {
+    const js = readFileSync('public/app.js', 'utf8');
+    expect(html).toContain('Someone asked to stop?');
+    expect(html).toMatch(/<input id="optPh"[^>]*autocomplete="off"/);
+    expect(html).toMatch(/<label for="optPh">/);
+    expect(html).toContain('Stop messages to this number');
+    expect(js).toContain("api('POST', '/api/optout'");
+    expect(html).toContain("Done. We won't message that number again.");
+    expect(js).toMatch(/\$\('#optPh'\)\.value = ''/);
   });
   it('radio groups have legends', () => {
     expect(html.match(/<fieldset>\s*<legend\b/g)?.length).toBe(html.match(/<fieldset>/g)?.length);

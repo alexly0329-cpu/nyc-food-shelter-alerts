@@ -257,6 +257,23 @@ $('#enrollForm').addEventListener('submit', async (e) => {
   toast('Enrolled. They can reply STOP any time.');
 });
 
+// ---------- opt-out ----------
+// The number lives only in the input and is cleared after every submit.
+$('#optoutForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearErr('#optErr');
+  $('#optOk').hidden = true;
+  const btn = $('#optBtn');
+  btn.disabled = true;
+  const r = await api('POST', '/api/optout', { phone: $('#optPh').value });
+  btn.disabled = false;
+  if (r.status === 401) return signedOut();
+  if (r.status === 403) return boot();
+  if (r.status !== 200) return showErr('#optErr', errorMessage(r.data?.error ?? ''));
+  $('#optPh').value = '';
+  $('#optOk').hidden = false;
+});
+
 // ---------- start ----------
 async function boot(dest) {
   const r = await api('GET', '/api/me');

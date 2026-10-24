@@ -1,6 +1,8 @@
 import type { FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
-import type { z } from 'zod';
+import { z } from 'zod';
+import { normalizePhone } from '../phone.js';
+import { stopRecipient } from '../recipients/revoke.js';
 import type { Sender } from '../alerts/send.js';
 import type { TavilyLike } from '../integrations/tavily.js';
 
@@ -37,4 +39,14 @@ export function parse<S extends z.ZodType>(schema: S, data: unknown): z.output<S
 export function sessionToken(req: FastifyRequest): string | undefined {
   const m = /(?:^|;\s*)session=([0-9a-f]+)/.exec(req.headers.cookie ?? '');
   return m?.[1];
+}
+
+export const optoutSchema = z.object({ phone: z.string() });
+
+/** Shared by the staff and admin opt-out routes. Same answer whether or not the number is enrolled. */
+export async function optOut(db: Pool, actorUserId: string, body: unknown): Promise<{ ok: true }> {
+  const phone = normalizePhone(parse(optoutSchema, body).phone);
+  if (!phone) throw new HttpError(400, 'INVALID_PHONE');
+  await stopRecipient(db, phone, actorUserId);
+  return { ok: true };
 }

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requireAdmin } from '../auth/session.js';
 import { withTx } from '../db.js';
 import { approveProvider, suspendProvider } from '../providers/admin.js';
-import { HttpError, parse, sessionToken, type ServerDeps } from './util.js';
+import { HttpError, optOut, parse, sessionToken, type ServerDeps } from './util.js';
 
 const idParams = z.object({ id: z.uuid() });
 const providerQuery = z.object({ status: z.enum(['pending', 'approved', 'suspended']).optional() });
@@ -37,6 +37,8 @@ export function adminRoutes(app: FastifyInstance, deps: ServerDeps): void {
       return { ok: true };
     });
   }
+
+  app.post('/api/admin/optout', async (req) => optOut(db, (await admin(req)).userId, req.body));
 
   app.get('/api/admin/alerts', async (req) => {
     await admin(req);

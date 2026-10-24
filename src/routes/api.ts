@@ -7,7 +7,7 @@ import { hashToken, login, SESSION_HOURS } from '../auth/users.js';
 import { verifyProvider } from '../integrations/tavily.js';
 import { applyProvider } from '../providers/apply.js';
 import { enrollRecipient, EnrollError } from '../recipients/enroll.js';
-import { HttpError, parse, sessionToken, type ServerDeps } from './util.js';
+import { HttpError, optOut, parse, sessionToken, type ServerDeps } from './util.js';
 
 const applySchema = z.object({
   name: z.string(), address: z.string(), contactName: z.string(), phone: z.string(),
@@ -86,6 +86,8 @@ export function apiRoutes(app: FastifyInstance, deps: ServerDeps): void {
     }
     return reply.code(201).send({ ok: true });
   });
+
+  app.post('/api/optout', async (req) => optOut(db, (await provider(req)).userId, req.body));
 
   app.post('/api/alerts', async (req, reply) => {
     const { providerId } = await provider(req);

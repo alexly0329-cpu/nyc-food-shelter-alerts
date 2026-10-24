@@ -512,3 +512,66 @@ describe('errors', () => {
     expect(r.statusCode).toBe(400);
   });
 });
+
+describe('opt-out routes', () => {
+  const rows = async (sql: string) => (await pool.query(sql)).rows;
+
+  async function enrolled(cookie: string) {
+    expect((await post('/api/enroll', enrollBody(), cookie)).statusCode).toBe(201);
+    return (await rows('SELECT id FROM recipients'))[0].id as string;
+  }
+
+  for (const [url, who] of [['/api/optout', staff], ['/api/admin/optout', admin]] as const) {
+    describe(url, () => {
+      it('revokes consent, stops the recipient, audits without the phone, same body as unknown', async () => {
+        const s = await who();
+        const other = await staff();
+        const id = await enrolled(other.cookie);
+        const delivery = await pool.query(
+          `WITH a AS (INSERT INTO alerts (provider_id, service_type, address, lat, lng, message, starts_at, ends_at, capacity_cap, idempotency_key)
+                      VALUES ($1, 'food', '1 Main St', 40.7, -74, 'm', now(), now() + interval '1 hour', 5, 'k-opt') RETURNING id)
+           INSERT INTO deliveries (alert_id, recipient_id, status) SELECT id, $2, 'queued' FROM a RETURNING id`,
+          [other.providerId, id],
+        );
+        const r = await post(url, { phone: '718-555-0142' }, s.cookie);
+        expect(r.statusCode).toBe(200);
+        expect(r.json()).toEqual({ ok: true });
+        expect((await rows('SELECT status FROM recipients'))[0].status).toBe('stopped');
+        expect((await rows('SELECT count(*)::int AS n FROM consents WHERE revoked_at IS NULL'))[0].n).toBe(0);
+        expect((await rows(`SELECT status FROM deliveries WHERE id = '${delivery.rows[0].id}'`))[0].status).toBe('stopped');
+        const audit = await rows(`SELECT actor_id, target_type, target_id FROM audit_log WHERE action = 'recipient.optout'`);
+        expect(audit).toEqual([{ actor_id: 'userId' in s ? s.userId : s.id, target_type: 'recipient', target_id: id }]);
+        expectNoPhone(JSON.stringify(await rows('SELECT * FROM audit_log')) + r.body);
+
+        const unknown = await post(url, { phone: '(212) 555-0199' }, s.cookie);
+        expect(unknown.statusCode).toBe(200);
+        expect(unknown.body).toBe(r.body);
+        expect((await rows(`SELECT 1 FROM audit_log WHERE action = 'recipient.optout'`)).length).toBe(1);
+      });
+
+      it('invalid phone is 400 INVALID_PHONE', async () => {
+        const s = await who();
+        for (const phone of ['12345', '', '(718) 155-0142']) {
+          const r = await post(url, { phone }, s.cookie);
+          expect(r.statusCode).toBe(400);
+          expect(r.json()).toEqual({ error: 'INVALID_PHONE' });
+        }
+        expect((await post(url, {}, s.cookie)).statusCode).toBe(400);
+      });
+
+      it('401 unauthenticated', async () => {
+        expect((await post(url, { phone: PHONE })).statusCode).toBe(401);
+      });
+    });
+  }
+
+  it('pending staff cannot opt out (403)', async () => {
+    const s = await staff('pending');
+    expect((await post('/api/optout', { phone: PHONE }, s.cookie)).statusCode).toBe(403);
+  });
+
+  it('staff cannot use the admin route; admin cannot use the staff route', async () => {
+    expect((await post('/api/admin/optout', { phone: PHONE }, (await staff()).cookie)).statusCode).toBe(403);
+    expect((await post('/api/optout', { phone: PHONE }, (await admin()).cookie)).statusCode).toBe(403);
+  });
+});

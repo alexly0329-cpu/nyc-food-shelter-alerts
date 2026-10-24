@@ -127,3 +127,4 @@ nav.main a,nav.main button.signout{min-width:48px;min-height:48px}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 nav.main [hidden]{display:none!important}
 h1:focus{outline:none}
+#optoutForm{margin-top:3rem;padding-top:1.5rem;border-top:2px solid var(--asphalt)}
