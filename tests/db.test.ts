@@ -25,13 +25,13 @@ beforeEach(async () => {
 afterAll(() => pool.end());
 
 describe('schema', () => {
-  it('migrate creates all six tables plus provider_users', async () => {
+  it('migrate creates all tables', async () => {
     await migrate(pool); // idempotent
     const { rows } = await pool.query(
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name`,
     );
     expect(rows.map((r) => r.table_name)).toEqual([
-      'alerts', 'consents', 'deliveries', 'provider_users', 'providers', 'recipients', 'schema_migrations',
+      'alerts', 'audit_log', 'consents', 'deliveries', 'provider_users', 'providers', 'recipients', 'schema_migrations', 'sessions',
     ]);
   });
 
