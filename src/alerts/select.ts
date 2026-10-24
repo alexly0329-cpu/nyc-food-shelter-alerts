@@ -21,7 +21,7 @@ ORDER BY 2 * 6371 * asin(sqrt(LEAST(1.0, GREATEST(0.0,
 LIMIT $3::int`;
 
 export async function selectRecipients(
-  db: pg.Pool,
+  db: pg.Pool | pg.PoolClient,
   input: { lat: number; lng: number; cap: number; now: Date },
 ): Promise<SelectedRecipient[]> {
   const { lat, lng, cap, now } = input;

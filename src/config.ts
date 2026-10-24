@@ -27,7 +27,11 @@ export function assertSafeTestDb(url: string): void {
   }
 }
 
+const rate = process.env.VONAGE_RATE_PER_SECOND ? Number(process.env.VONAGE_RATE_PER_SECOND) : 10;
+if (!Number.isInteger(rate) || rate < 1) throw new Error('VONAGE_RATE_PER_SECOND must be a positive integer');
+
 export const config = {
+  VONAGE_RATE_PER_SECOND: rate,
   DATABASE_URL: env('DATABASE_URL'),
   PHONE_ENCRYPTION_KEY: encKey,
   PHONE_HASH_KEY: env('PHONE_HASH_KEY'),
