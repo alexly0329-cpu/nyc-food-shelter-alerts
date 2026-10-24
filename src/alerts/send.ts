@@ -150,8 +150,8 @@ export async function runSendJob(deps: SendJobDeps, alertId: string): Promise<vo
       // Deliberately no error text: it could carry the number or message body.
     }
     if (id === undefined) {
-      logEvent('send_failed', { alertId, deliveryId: row.id, channel: row.channel });
       await db.query("UPDATE deliveries SET status = 'failed' WHERE id = $1 AND status = 'queued'", [row.id]);
+      logEvent('send_failed', { alertId, deliveryId: row.id, channel: row.channel });
     } else {
       // The message went out: never record it as failed. Retry the id store once, else leave the row claimed.
       for (let attempt = 0; attempt < 2; attempt++) {

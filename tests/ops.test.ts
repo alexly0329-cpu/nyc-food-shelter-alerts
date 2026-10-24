@@ -134,6 +134,31 @@ describe('logEvent', () => {
   });
 });
 
+describe('logEvent robustness', () => {
+  afterEach(() => vi.restoreAllMocks());
+  it('drops non-string/number values and never throws', () => {
+    const out: string[] = [];
+    vi.spyOn(process.stdout, 'write').mockImplementation(((s: string) => { out.push(String(s)); return true; }) as never);
+    const circ: Record<string, unknown> = {}; circ.self = circ;
+    const bad = { alertId: 10n, deliveryId: { a: 1 }, channel: ['sms'], route: circ, reason: null, status: NaN, x: undefined } as never;
+    expect(() => logEvent('send_failed', bad)).not.toThrow();
+    expect(() => logEvent('send_failed', { status: Infinity, reason: undefined } as never)).not.toThrow();
+    const j = JSON.parse(out[0]);
+    expect(Object.keys(j).sort()).toEqual(['event', 'ts']);
+    expect(JSON.parse(out[1]).status).toBeUndefined();
+  });
+  it('never throws when stdout fails', () => {
+    vi.spyOn(process.stdout, 'write').mockImplementation((() => { throw new Error('EPIPE'); }) as never);
+    expect(() => logEvent('queue_error', { reason: 'x' })).not.toThrow();
+  });
+  it('redacts a phone with 3 separator characters between groups', () => {
+    const out: string[] = [];
+    vi.spyOn(process.stdout, 'write').mockImplementation(((s: string) => { out.push(String(s)); return true; }) as never);
+    logEvent('webhook_error', { reason: 'call 718 - 555 - 0142 now' });
+    expect(JSON.parse(out[0]).reason).toBe('call [redacted] now');
+  });
+});
+
 describe('send_failed log', () => {
   afterEach(() => vi.restoreAllMocks());
   it('logs ids and channel only: no phone number, no message text', async () => {
@@ -159,14 +184,21 @@ describe('send_failed log', () => {
       sendSms: async (to, text) => { throw new Error(`carrier rejected ${to}: ${text}`); },
       startCall: async () => ({ id: 'x' }),
     };
-    await runSendJob({ db: pool, sender, enqueue: async () => {}, now: () => new Date('2026-06-01T16:00:00Z'), sleep: async () => {} }, alertId);
+    const seq: string[] = [];
+    const db = new Proxy(pool, { get: (t, p) => p === 'query'
+      ? (...a: unknown[]) => { if (typeof a[0] === 'string' && a[0].includes("status = 'failed' WHERE id")) seq.push('FAILED_WRITE'); return (t.query as (...x: unknown[]) => unknown)(...a); }
+      : (t as never)[p] }) as typeof pool;
+    out.length = 0;
+    vi.spyOn(process.stdout, 'write').mockImplementation(((s: string) => { seq.push('LOG'); out.push(String(s)); return true; }) as never);
+    await runSendJob({ db, sender, enqueue: async () => {}, now: () => new Date('2026-06-01T16:00:00Z'), sleep: async () => {} }, alertId);
+    expect(seq).toEqual(['FAILED_WRITE', 'LOG']);
     const lines = out.map((s) => JSON.parse(s));
     expect(lines).toHaveLength(1);
     const d = (await pool.query('SELECT id, status FROM deliveries WHERE alert_id = $1', [alertId])).rows[0];
     expect(d.status).toBe('failed');
     expect(lines[0]).toMatchObject({ event: 'send_failed', alertId, deliveryId: d.id, channel: 'sms' });
     const raw = out.join('');
-    expect(raw).not.toContain('1234');
+    for (const bad of ['7185551234', '+17185551234', '(718) 555-1234']) expect(raw).not.toContain(bad);
     expect(raw).not.toContain('Secret');
   });
 });
@@ -204,7 +236,7 @@ describe('webhook and queue log events', () => {
     const r = await mk(db).inject({ method: 'POST', url: '/webhooks/vonage/status', payload: body, headers: { 'content-type': 'application/json', authorization: `Bearer ${token(body)}` } });
     expect(r.statusCode).toBe(500);
     expect(out.map((l) => JSON.parse(l))).toMatchObject([{ event: 'webhook_error', route: '/webhooks/vonage/status', reason: 'Error' }]);
-    expect(out.join('')).not.toContain('1234');
+    for (const bad of ['7185551234', '+17185551234']) expect(out.join('')).not.toContain(bad);
   });
 
   it('a throwing send job logs queue_error and rethrows for pg-boss retry', async () => {

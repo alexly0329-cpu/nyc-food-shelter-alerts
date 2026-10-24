@@ -59,7 +59,7 @@ npx tsx src/main.ts        # serves the dashboard at http://localhost:3000
 | `npm test` | Run the test suite (vitest) |
 | `npm run typecheck` | Type-check with tsc |
 | `npm run seed:dev` | Create demo data in a dev database (see below) |
-| `npm run summary [-- YYYY-MM-DD]` | Print the daily summary as JSON (default: today, New York time) |
+| `npm run summary [-- YYYY-MM-DD]` | Print the daily summary as JSON (default: today, New York time). Needs `DATABASE_URL`, `PHONE_ENCRYPTION_KEY` and `PHONE_HASH_KEY` set, as does any script that imports the db module (config validates the keys at import) |
 
 ## Tests
 
