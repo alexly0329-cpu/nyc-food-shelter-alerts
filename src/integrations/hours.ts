@@ -77,8 +77,9 @@ function parseRange(a: string, b: string): { open: number; close: number } | nul
   const clock24 = x.mer === null && y.mer === null && x.colon && y.colon && !x.word && !y.word;
   if (!clock24 && x.mer === null && y.mer === null && !x.word && !y.word) return null;
   if (clock24) {
+    // "9:00-5:00" is ambiguous without am/pm: only a clearly 24-hour clock (an hour above 12) is read.
     const [o, c] = [x.min, y.min];
-    return o < 24 * 60 && c <= 24 * 60 ? { open: o, close: c } : null;
+    return Math.max(o, c) >= 13 * 60 && o < 24 * 60 && c <= 24 * 60 ? { open: o, close: c } : null;
   }
   const ex = (t: typeof x, mer: string) => (t.word ? t.min : to24(t.min, t.mer ?? mer));
   const other = (m: string) => (m === 'a' ? 'p' : 'a');
@@ -96,6 +97,8 @@ function parseRange(a: string, b: string): { open: number; close: number } | nul
   return open === close ? null : { open, close };
 }
 
+// A digit range that no parsed time consumed (e.g. "9-5"): hours exist on the page that we could not read.
+const DIGIT_RANGE = /(?<![\d$:/-])\d{1,2}(?::\d\d)?\s{0,3}[-–]\s{0,3}\d{1,2}(?::\d\d)?(?![\d/:-])/g;
 const GAP_OK = /^\W*(?:(?:open|hours|from|at|is|are)\W*)?$/;
 const GAP_JOIN = /^\W{0,4}(?:and\W*)?$/;
 
@@ -138,6 +141,9 @@ export function checkHoursInText(text: string, startsAt: Date, endsAt: Date): Ho
       entries.push({ days: it.days, open: it.open!, close: it.close! });
     });
     if (!entries.length) return 'unconfirmed';
+    // Hours we could not read (unparsed digit range, day label never paired with a time) make a would-be conflict unreliable.
+    const partial = items.some((it, i) => it.kind === 'days' && !claimed.has(i)) ||
+      [...t.matchAll(DIGIT_RANGE)].some((m) => !items.some((it) => it.kind === 'time' && m.index! >= it.start && m.index! + m[0].length <= it.end));
 
     const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' })
       .formatToParts(startsAt);
@@ -151,7 +157,7 @@ export function checkHoursInText(text: string, startsAt: Date, endsAt: Date): Ho
       if (e.days.has(day) && (wraps ? min >= e.open : min >= e.open && min <= e.close)) return true;
       return wraps && e.days.has(yesterday) && min <= e.close;
     });
-    return covers ? 'confirmed' : 'conflict';
+    return covers ? 'confirmed' : partial ? 'unconfirmed' : 'conflict';
   } catch {
     return 'unconfirmed';
   }

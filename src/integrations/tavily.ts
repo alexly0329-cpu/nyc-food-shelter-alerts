@@ -22,6 +22,11 @@ const SUFFIXES: Record<string, string> = {
 const UNIT_MARKERS = new Set(['apt', 'apartment', 'unit', 'ste', 'suite', 'fl', 'floor', 'rm', 'room']);
 const BARE = new Set(['north', 'south', 'east', 'west', 'saint']);
 
+// `st` is a saint only as the first street-name token: the house number sits right before it and nothing street-like
+// (a direction or another number, as in "100 W 21 St" or "31-10 21 St") sits before that number.
+const isSaint = (words: string[], i: number) =>
+  /^\d+$/.test(words[i - 1] ?? '') && !/^\d+$/.test(words[i - 2] ?? 'x') && !['n', 's', 'e', 'w', 'north', 'south', 'east', 'west'].includes(words[i - 2] ?? '');
+
 // Lowercase, punctuation to spaces, suffix and direction abbreviations expanded, padded for whole-word matching.
 // "st" straight after a house number is a saint ("10 St Marks Pl"), anywhere else a street.
 // dropUnit (alert address only): cut at the first unit marker after the house number.
@@ -31,7 +36,7 @@ function norm(s: string, dropUnit = false): string {
     const i = words.findIndex((w, k) => k >= 1 && UNIT_MARKERS.has(w));
     if (i >= 0) words = words.slice(0, i);
   }
-  return ` ${words.map((w, i) => (w === 'st' && /^\d+$/.test(words[i - 1] ?? '') ? 'saint' : SUFFIXES[w] ?? w)).join(' ')} `;
+  return ` ${words.map((w, i) => (w === 'st' && isSaint(words, i) ? 'saint' : SUFFIXES[w] ?? w)).join(' ')} `;
 }
 
 // Search results are untrusted web text: we only compare strings, never act on or echo them.

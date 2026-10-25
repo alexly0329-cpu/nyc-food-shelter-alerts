@@ -105,6 +105,12 @@ describe('address normalization', () => {
     expect(await run(P, '214 Marcy St', `${P} 214 Marcy Saint`)).toBe('needs_review');
     expect(await run(P, '10 St Marks Pl', `${P} 10 Street Marks Place`)).toBe('needs_review');
   });
+  it('st after a numbered street or direction stays street', async () => {
+    expect(await run(P, '100 W 21 St', `${P} 100 West 21 Street`)).toBe('verified');
+    expect(await run(P, '31-10 21 St', `${P} 31-10 21 Street`)).toBe('verified');
+    expect(await run(P, '1 St Nicholas Ave', `${P} 1 Street Nicholas Ave`)).toBe('needs_review');
+    expect(await run(P, '1 St Nicholas Ave', `${P} 1 Saint Nicholas Avenue`)).toBe('verified');
+  });
   it('number plus a bare direction or st is a weak needle', async () => {
     expect(await run(P, '5 N', `${P} 5 North`)).toBe('needs_review');
     expect(await run(P, '5 St', `${P} 5 Saint`)).toBe('needs_review');
