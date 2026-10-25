@@ -160,6 +160,25 @@ curl -b cookies.txt -X POST -H 'Content-Type: application/json' -d '{"phone":"(7
 
 Any approved staff member can opt out any number in the network. The answer is `{"ok":true}` whether or not the number was enrolled (it never reveals who is enrolled); an invalid number is 400 `INVALID_PHONE`. The stop cannot be undone by the system; re-enrolling needs a new recorded consent. Every opt-out, enrollment and alert post is written to the audit log with the acting user and ids only, never phone numbers or message text.
 
+## Deploy a prototype to Render (free tiers)
+
+`render.yaml` describes a free web service plus a free Postgres. It is for demos only: the web service sleeps after 15 minutes without traffic (about a minute to wake), the free database expires 30 days after creation (and is deleted 14 days later), and `NODE_ENV` is `staging` so start-up does not demand Vonage settings (sends fail until Vonage is configured; session cookies are not marked `Secure`). Do not enroll real people on it.
+
+1. Push this repo to GitHub (it must contain `render.yaml` on `main`).
+2. In Render: New, then Blueprint. Authorize Render to read the private repo, pick it, and apply. Paste values when asked for `TAVILY_API_KEY` and `VONAGE_SIGNATURE_SECRET` (the encryption keys and database URL are generated and linked for you).
+3. When the deploy is live, open the `.onrender.com` address. The first request after a sleep takes about a minute.
+4. Create the first admin from your own computer (the free web service has no shell). In Render open the database, Connections, copy the External Database URL, then:
+
+   ```bash
+   DATABASE_URL='<external url>?sslmode=require' \
+   PHONE_ENCRYPTION_KEY="$(openssl rand -base64 32)" PHONE_HASH_KEY="$(openssl rand -base64 32)" \
+   ADMIN_PASSWORD='choose-a-long-password' npm run create-admin -- you@example.org
+   ```
+
+   The two key variables are throwaways here: `create-admin` never uses them, but the config requires them to be set.
+5. Close the database's open network access (Render dashboard, database, Networking) now that the admin exists.
+6. Sign in at the Render address with that admin email. Approve providers and held alerts on the admin tabs.
+
 ## Operations
 
 - Structured log lines (one JSON object per line on stdout): `send_failed`, `webhook_error`, `webhook_rejected`, `queue_error`. They carry ids, channel and route only, never phone numbers or message text. Alert on them in your host.
