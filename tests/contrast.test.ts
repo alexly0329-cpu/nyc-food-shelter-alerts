@@ -26,11 +26,12 @@ const PAIRS: Array<[string, string, number]> = [
   ['bad', 'bg', 4.5], ['bad', 'surface', 4.5], ['bad', 'surface-2', 4.5],
   ['accent', 'bg', 4.5], ['accent', 'surface', 4.5], ['accent', 'surface-2', 4.5],
   ['on-accent', 'accent', 4.5], ['on-accent', 'bad', 4.5],
+  ['on-ink', 'ink', 4.5],
   ['edge', 'bg', 3], ['edge', 'surface', 3], ['edge', 'surface-2', 3],
   ['accent', 'bg', 3], // focus ring
 ];
 
-describe('dark theme contrast', () => {
+describe('light theme contrast', () => {
   it('reads every token it needs', () => {
     for (const [f, b] of PAIRS) { expect(tokens[f], f).toBeDefined(); expect(tokens[b], b).toBeDefined(); }
   });

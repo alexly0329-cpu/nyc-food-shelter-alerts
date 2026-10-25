@@ -75,15 +75,13 @@ describe('CSP-clean source', () => {
     expect(html).not.toMatch(/\sstyle\s*=/i);
     expect(html).not.toMatch(/\son[a-z]+\s*=/i);
   });
-  it('font link points only at Google Fonts and the stylesheet is local', () => {
+  it('loads only the local stylesheet and no web fonts', () => {
     const links = [...html.matchAll(/<link\b[^>]*>/gi)].map((m) => m[0]);
     const hrefs = links.map((l) => /href="([^"]+)"/.exec(l)?.[1] ?? '');
-    expect(hrefs.length).toBeGreaterThan(0);
-    for (const h of hrefs) expect(h).toMatch(/^(https:\/\/fonts\.googleapis\.com[\/?]|https:\/\/fonts\.googleapis\.com$|\/styles\.css$)/);
-    expect(html).toContain('IBM+Plex+Sans');
-    expect(html).toContain('IBM+Plex+Mono');
-    expect(html).not.toMatch(/Archivo|Atkinson/);
-    expect(readFileSync('public/styles.css', 'utf8')).not.toMatch(/Archivo|Atkinson|https?:\/\//);
+    expect(hrefs).toEqual(['/styles.css']);
+    const css = readFileSync('public/styles.css', 'utf8');
+    expect(css).toContain("'Helvetica Neue'");
+    expect(css).not.toMatch(/IBM Plex|Archivo|Atkinson|https?:\/\//);
   });
   it('JS uses no HTML-string or eval sinks', () => {
     for (const f of ['public/app.js', 'public/lib.js']) {
