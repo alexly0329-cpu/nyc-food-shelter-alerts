@@ -111,6 +111,9 @@ describe('CSP-clean source', () => {
     const js = readFileSync('public/app.js', 'utf8');
     expect(js).toMatch(/async function adminApi[\s\S]*?status === 401\) \{ signedOut\(\); return null; \}/);
     expect(js).toContain("api('POST', '/api/admin/optout'".replace('api(', 'adminApi('));
+    expect(js).toMatch(/status === 403\) \{ boot\(true\); return null; \}/);
+    expect(js).toContain("'aria-label': question");
+    expect(js).not.toContain('Address not found');
     expect(js).toContain("Alerts they already queued won't send.");
     expect(js).toContain('Reject this alert? It will never be sent.');
     expect(js).toMatch(/\$\('#aoPh'\)\.value = ''/);

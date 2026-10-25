@@ -1,4 +1,4 @@
-import { adminErrorMessage, alertStatusLabel, errorMessage, formatEt, friendlyError, hoursLabel, providerStatusLabel, startTooFar, tavilyLabel, toIso, touchesQuietHours } from '/lib.js';
+import { addressLabel, adminErrorMessage, alertActionName, alertStatusLabel, displayText, errorMessage, formatEt, friendlyError, hoursLabel, providerStatusLabel, startTooFar, tavilyLabel, toIso, touchesQuietHours } from '/lib.js';
 
 const $ = (s) => document.querySelector(s);
 const views = ['login', 'apply', 'alerts', 'new', 'enroll', 'admin-providers', 'admin-alerts', 'admin-optout'];
@@ -284,11 +284,12 @@ $('#optoutForm').addEventListener('submit', async (e) => {
 async function adminApi(method, path, body) {
   const r = await api(method, path, body);
   if (r.status === 401) { signedOut(); return null; }
+  if (r.status === 403) { boot(true); return null; } // role changed: re-read /api/me and go to the right home
   return r;
 }
 const badge = (l) => el('span', { class: 'badge ' + l.tone }, icon(l.tone), l.text);
 const facts = (rows) => el('dl', { class: 'facts' }, ...rows.map(([k, v]) => el('div', {}, el('dt', {}, k), el('dd', {}, v))));
-const text = (v) => (v == null || v === '' ? 'Not given' : String(v));
+const text = displayText;
 
 // Fetch and render a list. `row(item, load)` builds a card; focus goes to the heading after an action.
 function loader(listId, noun, url, emptyText, row) {
@@ -316,7 +317,7 @@ async function runAction(path, busy, errId, okText, reload, restore) {
   clearErr(errId);
   busy.forEach((b) => (b.disabled = true));
   const r = await adminApi('POST', path);
-  if (!r) return;
+  if (!r) return busy.forEach((b) => (b.disabled = false));
   if (r.status === 200) { toast(okText); return reload(true); }
   busy.forEach((b) => (b.disabled = false));
   restore?.();
@@ -329,7 +330,7 @@ function askConfirm(actions, trigger, question, label, run) {
   const q = el('p', { tabindex: '-1' }, question);
   const yes = el('button', { class: 'btn danger', type: 'button' }, label);
   const no = el('button', { class: 'btn plain', type: 'button' }, 'Cancel');
-  const box = el('div', { class: 'confirm', role: 'group', 'aria-label': 'Confirm action' }, q, el('div', { class: 'actions' }, yes, no));
+  const box = el('div', { class: 'confirm', role: 'group', 'aria-label': question }, q, el('div', { class: 'actions' }, yes, no));
   const close = () => { box.remove(); actions.hidden = false; };
   no.addEventListener('click', () => { close(); trigger.focus(); });
   yes.addEventListener('click', () => run([yes, no], () => { close(); trigger.focus(); }));
@@ -360,8 +361,8 @@ function providerRow(p, load) {
 
 function heldRow(a, load) {
   const ok = a.providerStatus === 'approved';
-  const approve = el('button', { class: 'btn', type: 'button', 'aria-label': `Approve alert from ${a.providerName}` }, 'Approve');
-  const reject = el('button', { class: 'btn plain', type: 'button', 'aria-label': `Reject alert from ${a.providerName}` }, 'Reject');
+  const approve = el('button', { class: 'btn', type: 'button', 'aria-label': alertActionName('Approve', a.providerName, a.startsAt) }, 'Approve');
+  const reject = el('button', { class: 'btn plain', type: 'button', 'aria-label': alertActionName('Reject', a.providerName, a.startsAt) }, 'Reject');
   const actions = el('div', { class: 'actions' }, approve, reject);
   const why = ok ? null : el('p', { class: 'reason', id: 'why-' + a.id }, a.providerStatus === 'suspended' ? "Provider suspended. This alert can't be approved." : "Provider isn't approved yet. This alert can't be approved.");
   if (why) { approve.disabled = true; approve.setAttribute('aria-describedby', why.id); }
@@ -371,7 +372,7 @@ function heldRow(a, load) {
     askConfirm(actions, reject, 'Reject this alert? It will never be sent.', 'Confirm reject',
       (busy, restore) => go('reject', 'Alert rejected.', busy, restore)));
   const hours = hoursLabel(a.hoursCheck);
-  const where = a.geocoded ? { text: 'Address located', tone: 'ok' } : { text: 'Address not found', tone: 'bad' };
+  const where = addressLabel(a.geocoded);
   return el('article', { class: 'card' },
     el('h3', {}, a.providerName), badge(providerStatusLabel(a.providerStatus)),
     el('p', { class: 'msg' }, a.message),
@@ -396,8 +397,8 @@ $('#adminOptoutForm').addEventListener('submit', async (e) => {
   const btn = $('#aoBtn');
   btn.disabled = true;
   const r = await adminApi('POST', '/api/admin/optout', { phone: $('#aoPh').value });
-  if (!r) return;
   btn.disabled = false;
+  if (!r) return;
   if (r.status !== 200) return showErr('#aoErr', adminErrorMessage(r.status, r.data?.error));
   $('#aoPh').value = '';
   $('#aoOk').hidden = false;

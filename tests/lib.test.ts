@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { adminErrorMessage, alertStatusLabel, errorMessage, formatEt, friendlyError, hoursLabel, providerStatusLabel, startTooFar, tavilyLabel, toIso, touchesQuietHours } from '../public/lib.js';
+import { addressLabel, adminErrorMessage, alertActionName, displayText, alertStatusLabel, errorMessage, formatEt, friendlyError, hoursLabel, providerStatusLabel, startTooFar, tavilyLabel, toIso, touchesQuietHours } from '../public/lib.js';
 
 describe('errorMessage', () => {
   const cases: Record<string, string> = {
@@ -24,13 +24,13 @@ describe('alertStatusLabel', () => {
   it('needs_review with an hours conflict', () =>
     expect(alertStatusLabel({ status: 'pending', verification: 'needs_review', hoursCheck: 'conflict' })).toEqual({ text: "Needs review · the hours we found don't match", tone: 'wait' }));
   it('hours conflict only matters while in review', () =>
-    expect(alertStatusLabel({ status: 'sent', verification: 'verified', hoursCheck: 'conflict' }).text).toBe('Sent · address verified'));
+    expect(alertStatusLabel({ status: 'sent', verification: 'verified', hoursCheck: 'conflict' }).text).toBe('Sent'));
   it('needs_review with other hours values is unchanged', () =>
     expect(alertStatusLabel({ status: 'pending', verification: 'needs_review', hoursCheck: 'unconfirmed' }).text).toBe("Needs review · we couldn't confirm the address"));
   it('rejected', () => expect(l('pending', 'rejected').tone).toBe('bad'));
   it('queued', () => expect(l('pending', 'verified')).toEqual({ text: 'Queued', tone: 'wait' }));
   it('sending', () => expect(l('sending', 'verified')).toEqual({ text: 'Sending', tone: 'wait' }));
-  it('sent', () => expect(l('sent', 'verified')).toEqual({ text: 'Sent · address verified', tone: 'ok' }));
+  it('sent', () => expect(l('sent', 'verified')).toEqual({ text: 'Sent', tone: 'ok' }));
   it('expired', () => expect(l('expired', 'verified')).toEqual({ text: 'Expired · not sent', tone: 'bad' }));
   it('review wins over send state', () => expect(l('sent', 'needs_review').tone).toBe('wait'));
 });
@@ -148,4 +148,40 @@ describe('admin error mappings', () => {
     expect(adminErrorMessage(400, 'INVALID_PHONE')).toBe(errorMessage('INVALID_PHONE'));
     expect(adminErrorMessage(0, undefined)).toBe('Something went wrong. Try again.');
   });
+});
+
+describe('alertStatusLabel honest send status', () => {
+  const sent = (o: object) => alertStatusLabel({ status: 'sent', verification: 'verified', ...o });
+  const bad = { text: 'Not delivered · every send failed', tone: 'bad' };
+  it('every send failed', () => expect(sent({ texted: 3, delivered: 0, failed: 3 })).toEqual(bad));
+  it('more failed than texted still counts', () => expect(sent({ texted: 2, delivered: 0, failed: 3 })).toEqual(bad));
+  it('some delivered is plain Sent', () => expect(sent({ texted: 3, delivered: 1, failed: 2 })).toEqual({ text: 'Sent', tone: 'ok' }));
+  it('failed below texted is plain Sent', () => expect(sent({ texted: 3, delivered: 0, failed: 2 }).text).toBe('Sent'));
+  it('texted 0 and failed 0 is plain Sent', () => expect(sent({ texted: 0, delivered: 0, failed: 0 }).text).toBe('Sent'));
+  it('missing counts are plain Sent', () => expect(sent({}).text).toBe('Sent'));
+  it('only applies to sent', () => expect(alertStatusLabel({ status: 'sending', verification: 'verified', texted: 3, delivered: 0, failed: 3 }).text).toBe('Sending'));
+});
+
+describe('alertActionName', () => {
+  it('identifies the alert by provider and start time', () =>
+    expect(alertActionName('Approve', 'Demo Pantry', '2026-10-24T21:00:00Z')).toBe('Approve alert from Demo Pantry, Sat Oct 24, 5:00 PM'));
+  it('two alerts of one provider get distinct names', () =>
+    expect(alertActionName('Reject', 'P', '2026-10-24T21:00:00Z')).not.toBe(alertActionName('Reject', 'P', '2026-10-24T23:00:00Z')));
+  it('bad time drops the time part', () => expect(alertActionName('Reject', 'P', 'x')).toBe('Reject alert from P'));
+});
+
+describe('displayText', () => {
+  it('shows strings and numbers', () => {
+    expect(displayText('Dana')).toBe('Dana');
+    expect(displayText(60)).toBe('60');
+    expect(displayText(0)).toBe('0');
+  });
+  it('shows Not given for empty and non-scalar values', () => {
+    for (const v of [null, undefined, '', {}, [], { a: 1 }, true]) expect(displayText(v)).toBe('Not given');
+  });
+});
+
+describe('addressLabel', () => {
+  it('located', () => expect(addressLabel(true)).toEqual({ text: 'Address located', tone: 'ok' }));
+  it('not located yet', () => expect(addressLabel(false)).toEqual({ text: 'Address not located yet', tone: 'bad' }));
 });

@@ -50,7 +50,10 @@ export function alertStatusLabel(a) {
   if (a.verification === 'rejected') return { text: 'Rejected · address or details not accepted', tone: 'bad' };
   if (a.verification === 'needs_review' && a.hoursCheck === 'conflict') return { text: "Needs review · the hours we found don't match", tone: 'wait' };
   if (a.verification === 'needs_review') return { text: "Needs review · we couldn't confirm the address", tone: 'wait' };
-  if (a.status === 'sent') return { text: 'Sent · address verified', tone: 'ok' };
+  if (a.status === 'sent') {
+    // An admin-approved alert's address was not auto-verified, so plain "Sent"; never claim success when nothing arrived.
+    return a.delivered === 0 && a.failed > 0 && a.failed >= a.texted ? { text: 'Not delivered · every send failed', tone: 'bad' } : { text: 'Sent', tone: 'ok' };
+  }
   if (a.status === 'sending') return { text: 'Sending', tone: 'wait' };
   if (a.status === 'expired') return { text: 'Expired · not sent', tone: 'bad' };
   return { text: 'Queued', tone: 'wait' };
@@ -101,4 +104,19 @@ export function formatEt(iso) {
   if (isNaN(d)) return '';
   const p = Object.fromEntries(ET.formatToParts(d).map((x) => [x.type, x.value]));
   return `${p.weekday} ${p.month} ${p.day}, ${p.hour}:${p.minute} ${p.dayPeriod}`;
+}
+
+/** Button name that tells two alerts of one provider apart. */
+export function alertActionName(verb, providerName, startsAt) {
+  const when = formatEt(startsAt);
+  return `${verb} alert from ${providerName}${when ? ', ' + when : ''}`;
+}
+
+/** Provider-supplied JSON can hold anything: only strings and numbers are shown. */
+export function displayText(v) {
+  return (typeof v === 'string' && v !== '') || typeof v === 'number' ? String(v) : 'Not given';
+}
+
+export function addressLabel(geocoded) {
+  return geocoded ? { text: 'Address located', tone: 'ok' } : { text: 'Address not located yet', tone: 'bad' };
 }
