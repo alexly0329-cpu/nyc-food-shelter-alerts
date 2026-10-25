@@ -1,7 +1,7 @@
 import { addressLabel, adminErrorMessage, alertActionName, alertStatusLabel, displayText, errorMessage, formatEt, friendlyError, hoursLabel, providerStatusLabel, startTooFar, tavilyLabel, toIso, touchesQuietHours } from '/lib.js';
 
 const $ = (s) => document.querySelector(s);
-const views = ['login', 'apply', 'alerts', 'new', 'enroll', 'admin-providers', 'admin-alerts', 'admin-optout'];
+const views = ['home', 'login', 'apply', 'alerts', 'new', 'enroll', 'admin-providers', 'admin-alerts', 'admin-optout'];
 let me = null; // { providerName, status, role } once signed in
 
 // Never log or store form values: enrollment forms hold phone numbers.
@@ -65,14 +65,14 @@ const clearErr = (id) => { $(id).hidden = true; $(id).textContent = ''; };
 // ---------- routing ----------
 const canSend = () => me?.role === 'staff' && me.status === 'approved';
 function allowed(v) {
-  if (!me) return v === 'login' || v === 'apply';
-  if (v === 'login' || v === 'apply') return false;
+  if (!me) return v === 'home' || v === 'login' || v === 'apply';
+  if (v === 'home' || v === 'login' || v === 'apply') return false;
   if (v.startsWith('admin-')) return me.role === 'admin';
   if (me.role === 'admin') return false; // staff views: the server would 403 an admin anyway
   if (v === 'new' || v === 'enroll') return canSend();
   return true;
 }
-const home = () => (me?.role === 'admin' ? 'admin-alerts' : me ? 'alerts' : 'login');
+const home = () => (me?.role === 'admin' ? 'admin-alerts' : me ? 'alerts' : 'home');
 function route() {
   let v = location.hash.slice(1);
   if (!views.includes(v)) v = home();
@@ -83,12 +83,13 @@ function route() {
   }
   views.forEach((n) => $('#v-' + n).classList.toggle('on', n === v));
   $('#nav').hidden = !me;
+  document.body.classList.toggle('authed', !!me);
   const role = me?.role === 'admin' ? 'admin' : 'staff';
   $('#nav').querySelectorAll('a').forEach((a) => {
     a.hidden = a.dataset.role !== role || (role === 'staff' && a.dataset.v !== 'alerts' && !canSend());
     a.dataset.v === v ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current');
   });
-  $('#v-' + v).querySelector('h1')?.focus();
+  $('#v-' + v).querySelector('h1')?.focus({ preventScroll: true });
   scrollTo(0, 0);
   if (v === 'alerts') showAlerts();
   if (v === 'new') paint();
@@ -97,6 +98,13 @@ function route() {
   if (v === 'admin-optout') { $('#aoPh').value = ''; $('#aoOk').hidden = true; clearErr('#aoErr'); }
 }
 addEventListener('hashchange', route);
+
+// Landing: "See how it works" scrolls to the story. A button (not an #anchor) so hash routing is untouched.
+document.querySelectorAll('[data-scroll]').forEach((b) => b.addEventListener('click', () => {
+  const t = document.getElementById(b.dataset.scroll);
+  t.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  t.querySelector('h2')?.focus({ preventScroll: true });
+}));
 
 function setMe(m) {
   me = m;
@@ -109,7 +117,7 @@ function setMe(m) {
 }
 // A full reload is the one reliable way to drop every typed value, draft, alert list and key
 // from the page, so the next person on a shared computer starts clean.
-function signedOut() { location.replace('/#login'); location.reload(); }
+function signedOut() { location.replace('/#home'); location.reload(); }
 
 // ---------- login / apply / logout ----------
 $('#loginForm').addEventListener('submit', async (e) => {

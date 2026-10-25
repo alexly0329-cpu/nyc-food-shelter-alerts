@@ -21,8 +21,72 @@
   <button class="signout" type="button" id="signout"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9"/></svg>Sign out</button>
 </nav>
 
+<!-- HOME (signed-out landing; static, no data) -->
+<main class="view home" id="v-home">
+  <div class="lp">
+    <header class="lp-top">
+      <span class="wordmark">NYC food + shelter alerts</span>
+      <div class="pills">
+        <a class="btn plain" href="#login">Sign in</a>
+        <a class="btn plain" href="#apply">Apply to join</a>
+      </div>
+    </header>
+
+    <section class="hero" aria-labelledby="heroH">
+      <div class="hero-in">
+        <h1 id="heroH" tabindex="-1"><span>When a pantry has food,</span><span class="two">the neighbors hear first.</span></h1>
+        <p class="sub">Food banks and shelters send a short text or call to nearby people who signed up in person. Nothing goes out until the address checks out.</p>
+        <div class="cta">
+          <a class="btn" href="#apply">Apply to join</a>
+          <button class="textlink" type="button" data-scroll="story">See how it works</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="story" aria-labelledby="storyH">
+      <span class="label">How it works</span>
+      <h2 id="storyH" tabindex="-1">A Tuesday at a Brooklyn pantry</h2>
+      <p class="eg">An example, not real data.</p>
+      <ol class="steps">
+        <li><span class="num">01</span><h3>Someone says yes</h3><p>Staff enroll a person in person. They read a short note out loud, the person says yes, and we record it.</p></li>
+        <li><span class="num">02</span><h3>The pantry posts an alert</h3><p>It writes &ldquo;Hot meals, 5 to 7 pm&rdquo; and sets a cap of 60 people.</p></li>
+        <li><span class="num">03</span><h3>We check before sending</h3><p>We look for a web page that matches the pantry&rsquo;s name and address and, if the page lists hours, whether they fit. If we can&rsquo;t confirm, the alert is held for a person to review and nothing is sent.</p></li>
+        <li><span class="num">04</span><h3>Neighbors hear first</h3><p>The nearest people who agreed, up to 60, get a text or a call. Reply STOP and the messages end.</p></li>
+      </ol>
+    </section>
+
+    <section class="sec" aria-labelledby="rulesH">
+      <span class="label">The rules</span>
+      <h2 id="rulesH">What this will never do</h2>
+      <ul class="rules">
+        <li><span class="tag">Never</span><span>send an alert whose address we couldn&rsquo;t confirm, unless a person has reviewed and approved it.</span></li>
+        <li><span class="tag">Never</span><span>message more people than the cap.</span></li>
+        <li><span class="tag">Never</span><span>message the same person twice in 24 hours.</span></li>
+        <li><span class="tag">Never</span><span>message anyone after they reply STOP, unless they say yes again in person.</span></li>
+        <li><span class="tag">Never</span><span>send after an alert&rsquo;s end time.</span></li>
+        <li><span class="tag">Never</span><span>send between 9 pm and 8 am, unless the alert is marked urgent.</span></li>
+        <li><span class="tag">Never</span><span>show a provider anyone&rsquo;s phone number. Providers see totals only.</span></li>
+      </ul>
+    </section>
+
+    <section class="closer" aria-labelledby="closeH">
+      <h2 id="closeH">Every alert is a person who said yes.</h2>
+      <div class="cta">
+        <a class="btn" href="#apply">Apply to join</a>
+        <a class="btn plain" href="#login">Sign in</a>
+      </div>
+    </section>
+
+    <footer class="lp-foot">
+      <p>Prototype. Not open to real providers yet.</p>
+      <p><a href="https://github.com/alexly0329-cpu/nyc-food-shelter-alerts" rel="noopener noreferrer">github.com/alexly0329-cpu/nyc-food-shelter-alerts</a></p>
+    </footer>
+  </div>
+</main>
+
 <!-- LOGIN -->
 <main class="view login" id="v-login">
+  <a class="back" href="#home">Back to home</a>
   <span class="sign">NYC food + shelter alerts</span>
   <h1 tabindex="-1">Sign in</h1>
   <p class="lede">For approved food banks and shelters only.</p>
@@ -37,6 +101,7 @@
 
 <!-- APPLY -->
 <main class="view login" id="v-apply">
+  <a class="back" href="#home">Back to home</a>
   <span class="sign">NYC food + shelter alerts</span>
   <h1 tabindex="-1">Apply to join</h1>
   <p class="lede">For food banks and shelters in New York City. A person reviews every application.</p>
