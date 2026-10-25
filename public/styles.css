@@ -149,3 +149,4 @@ nav.main a[data-role=admin]{min-width:0}
 .reason{color:var(--red);font-weight:700;margin:0}
 @media (min-width:600px){.facts div{grid-template-columns:11rem 1fr}}
 .actions[hidden]{display:none}
+#providerFilter .choices{grid-template-columns:repeat(3,1fr)}
