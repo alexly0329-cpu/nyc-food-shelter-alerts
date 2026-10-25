@@ -75,6 +75,16 @@ describe('CSP-clean source', () => {
     expect(html).not.toMatch(/\sstyle\s*=/i);
     expect(html).not.toMatch(/\son[a-z]+\s*=/i);
   });
+  it('font link points only at Google Fonts and the stylesheet is local', () => {
+    const links = [...html.matchAll(/<link\b[^>]*>/gi)].map((m) => m[0]);
+    const hrefs = links.map((l) => /href="([^"]+)"/.exec(l)?.[1] ?? '');
+    expect(hrefs.length).toBeGreaterThan(0);
+    for (const h of hrefs) expect(h).toMatch(/^(https:\/\/fonts\.googleapis\.com[\/?]|https:\/\/fonts\.googleapis\.com$|\/styles\.css$)/);
+    expect(html).toContain('IBM+Plex+Sans');
+    expect(html).toContain('IBM+Plex+Mono');
+    expect(html).not.toMatch(/Archivo|Atkinson/);
+    expect(readFileSync('public/styles.css', 'utf8')).not.toMatch(/Archivo|Atkinson|https?:\/\//);
+  });
   it('JS uses no HTML-string or eval sinks', () => {
     for (const f of ['public/app.js', 'public/lib.js']) {
       expect(readFileSync(f, 'utf8')).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/);
@@ -135,5 +145,50 @@ describe('CSP-clean source', () => {
   });
   it('radio groups have legends', () => {
     expect(html.match(/<fieldset>\s*<legend\b/g)?.length).toBe(html.match(/<fieldset>/g)?.length);
+  });
+});
+
+describe('landing page', () => {
+  const html = readFileSync('public/index.html', 'utf8');
+  const js = readFileSync('public/app.js', 'utf8');
+  const home = html.slice(html.indexOf('id="v-home"'), html.indexOf('<!-- LOGIN -->'));
+  it('hero has the two-line headline, sub line and both calls to action', () => {
+    expect(home).toMatch(/<h1[^>]*>\s*<span>When a pantry has food,<\/span><span class="two">the neighbors hear first\.<\/span>\s*<\/h1>/);
+    expect(home).toContain('Nothing goes out until the address checks out.');
+    expect(home).toContain('href="#login">Sign in</a>');
+    expect(home.match(/href="#apply">Apply to join<\/a>/g)?.length).toBe(3);
+    expect(home).toMatch(/<button[^>]*data-scroll="story"[^>]*>See how it works<\/button>/);
+    expect(home).not.toMatch(/href="#story"/);
+  });
+  it('story is labelled as an example and has four numbered steps', () => {
+    expect(home).toContain('A Tuesday at a Brooklyn pantry');
+    expect(home).toContain('An example, not real data.');
+    const steps = home.match(/<ol class="steps">([\s\S]*?)<\/ol>/)![1]!;
+    expect(steps.match(/<li>/g)?.length).toBe(4);
+    expect([...steps.matchAll(/class="num">(\d\d)</g)].map((m) => m[1])).toEqual(['01', '02', '03', '04']);
+  });
+  it('rules list has seven items', () => {
+    expect(home).toContain('What this will never do');
+    const rules = home.match(/<ul class="rules">([\s\S]*?)<\/ul>/)![1]!;
+    expect(rules.match(/<li>/g)?.length).toBe(7);
+  });
+  it('closing call to action and prototype footer', () => {
+    expect(home).toContain('Every alert is a person who said yes.');
+    expect(home).toMatch(/<footer[^>]*>[\s\S]*Prototype\. Not open to real providers yet\.[\s\S]*github\.com\/alexly0329-cpu\/nyc-food-shelter-alerts/);
+  });
+  it('landing markup has no inline code or third-party hosts', () => {
+    expect(home).not.toMatch(/<script|<style|\sstyle\s*=|\son[a-z]+\s*=|javascript:/i);
+    for (const m of home.matchAll(/(?:href|src)="(https?:[^"]+)"/g)) expect(m[1]).toBe('https://github.com/alexly0329-cpu/nyc-food-shelter-alerts');
+  });
+  it('sign-in and apply link back to home', () => {
+    expect(html.match(/<a class="back" href="#home">Back to home<\/a>/g)?.length).toBe(2);
+  });
+  it('signed-out default route is home and sign-out lands on it', () => {
+    expect(js).toContain("me ? 'alerts' : 'home'");
+    expect(js).toContain("if (!me) return v === 'home' || v === 'login' || v === 'apply';");
+    expect(js).toContain("if (v === 'home' || v === 'login' || v === 'apply') return false;");
+    expect(js).toContain("location.replace('/#home')");
+    expect(js).not.toContain("location.replace('/#login')");
+    expect(js).toContain('prefers-reduced-motion');
   });
 });
