@@ -105,7 +105,13 @@ Use signed webhooks (JWT signature) and set the signature secret as `VONAGE_SIGN
 
 ## Admin workflow
 
-There is no admin screen in v1: approvals are API calls. Send `Content-Type: application/json` on every POST (the API returns 415 otherwise).
+Admins have a screen in the dashboard. Sign in with an admin account and you get three tabs (staff accounts never see them, and the server rejects admin calls from staff anyway):
+
+- **Providers:** filter Pending, Approved or Suspended. Each row shows the organization, address, contact details, applicant email, when they applied (New York time) and how the web check looked ("Looks real on the web" or "We couldn't confirm it online"). Approve pending or suspended providers; Suspend approved ones (an in-page confirm first: alerts they already queued won't send).
+- **Held alerts:** alerts waiting in `needs_review`, newest first, with the message, address, times, cap, the hours result ("Hours match", "No hours found online", "Hours don't match") and whether the address was located. Approve or Reject (Reject asks for a confirm; a rejected alert is never sent). Approve is disabled while the provider is suspended or not yet approved, and approving an alert whose address cannot be located shows the server's message until the address is fixed.
+- **Opt out:** end all messages to a number, whether or not it is enrolled. The answer is the same either way and the number is never kept in the page.
+
+The first admin is created with `create-admin` (step one below); there is no sign-up for admins. Every action is audited by the server. The curl examples below remain as the API fallback. Send `Content-Type: application/json` on every POST (the API returns 415 otherwise).
 
 Step one: create the first admin. Choose a password (10 to 256 characters) and pass it only through the environment:
 

@@ -38,6 +38,6 @@ Do or decide each item before real people are enrolled.
 - [ ] **A send that times out (10 s) leaves its delivery claimed with no `vonage_id`.** The outcome is unknown and a late status webhook cannot match it; the person is never messaged twice. Review these rows by hand.
 - [ ] **No rate limiting on the login and apply endpoints yet.** Password guessing and application spam are possible.
 - [ ] **Client-side time checks use browser time; the server is authoritative.** The dashboard's 24-hour and quiet-hours hints follow the browser clock and time zone, the server decides.
-- [ ] **There is no admin screen.** Approval is API-only today (see the README admin workflow); decide whether staff can use curl or a screen must be built first.
+- [ ] **Admin screen is basic.** Admins approve providers and held alerts, and opt numbers out, in the dashboard (README admin workflow); the curl examples remain as a fallback. There is no list of already-handled alerts or audit view in the UI, and no notification when an alert is waiting, so someone must check the Held alerts tab.
 - [ ] **Crashed send jobs rely on pg-boss retries** (3 retries with backoff). A delivery with `queued`, `claimed_at` set and no `vonage_id` means "outcome unknown" and is never retried, so a person is never messaged twice. Review those rows by hand after a crash.
 - [ ] **The staff UI loads Google Fonts.** Self-host the fonts later to avoid third-party requests from the dashboard.
