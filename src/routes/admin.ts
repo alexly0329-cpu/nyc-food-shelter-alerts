@@ -56,7 +56,7 @@ export function adminRoutes(app: FastifyInstance, deps: ServerDeps): void {
     const { rows } = await db.query(
       `SELECT a.id, p.name AS "providerName", p.status AS "providerStatus", a.service_type AS "serviceType", a.address, a.message,
               a.starts_at AS "startsAt", a.ends_at AS "endsAt", a.capacity_cap AS "capacityCap",
-              a.verification_status AS verification, (a.lat IS NOT NULL) AS geocoded
+              a.verification_status AS verification, a.hours_check AS "hoursCheck", (a.lat IS NOT NULL) AS geocoded
          FROM alerts a JOIN providers p ON p.id = a.provider_id
         WHERE a.verification_status = $1 ORDER BY a.created_at DESC`,
       [status],

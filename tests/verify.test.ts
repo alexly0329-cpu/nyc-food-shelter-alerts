@@ -116,6 +116,37 @@ describe('address normalization', () => {
   });
 });
 
+describe('verifyAlert hours check', () => {
+  // alert is Sun 2026-11-01 14:00Z-18:00Z = 09:00-13:00 EST
+  const page = (extra: string) => fake([hit('Marcy Community Pantry', `Marcy Community Pantry, 214 Marcy Avenue. ${extra}`)]);
+  it('confirmed hours keep verified', async () => {
+    expect(await verifyAlert(page('Open Sun 8am-2pm'), alert)).toMatchObject({ status: 'verified', hoursCheck: 'confirmed' });
+  });
+  it('no hours found keeps verified, unconfirmed', async () => {
+    expect(await verifyAlert(page('Free food.'), alert)).toMatchObject({ status: 'verified', hoursCheck: 'unconfirmed' });
+  });
+  it('conflicting hours need review with a constant detail', async () => {
+    const r = await verifyAlert(page('Open Mon-Fri 5pm-7pm'), alert);
+    expect(r).toEqual({ status: 'needs_review', detail: 'hours conflict', hoursCheck: 'conflict' });
+  });
+  it('any confirmed result beats a conflicting one', async () => {
+    const c = fake([hit('Marcy Community Pantry', '214 Marcy Avenue Marcy Community Pantry Mon-Fri 5pm-7pm'), hit('Marcy Community Pantry', '214 Marcy Avenue Marcy Community Pantry Sun 9am-1pm')]);
+    expect((await verifyAlert(c, alert)).hoursCheck).toBe('confirmed');
+  });
+  it('conflict beats unconfirmed across results', async () => {
+    const c = fake([hit('Marcy Community Pantry', '214 Marcy Avenue Marcy Community Pantry'), hit('Marcy Community Pantry', '214 Marcy Avenue Marcy Community Pantry Mon 5pm-7pm')]);
+    expect((await verifyAlert(c, alert)).hoursCheck).toBe('conflict');
+  });
+  it('hours in a result that does not match name and street are ignored', async () => {
+    const c = fake([hit('Marcy Community Pantry', '214 Marcy Avenue Marcy Community Pantry'), hit('Other', 'Sat 5pm-7pm')]);
+    expect((await verifyAlert(c, alert)).hoursCheck).toBe('unconfirmed');
+  });
+  it('no match and error are needs_review, unconfirmed', async () => {
+    expect(await verifyAlert(fake([]), alert)).toMatchObject({ status: 'needs_review', hoursCheck: 'unconfirmed' });
+    expect(await verifyAlert(throwing, alert)).toMatchObject({ status: 'needs_review', hoursCheck: 'unconfirmed' });
+  });
+});
+
 describe('verifyProvider', () => {
   const p = { name: 'Marcy Community Pantry', address: '214 Marcy Ave' };
   it('match is likely_legit', async () => {

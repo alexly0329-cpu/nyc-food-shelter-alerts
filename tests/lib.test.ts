@@ -21,6 +21,12 @@ describe('errorMessage', () => {
 describe('alertStatusLabel', () => {
   const l = (status: string, verification: string) => alertStatusLabel({ status, verification });
   it('needs_review', () => expect(l('pending', 'needs_review')).toEqual({ text: "Needs review · we couldn't confirm the address", tone: 'wait' }));
+  it('needs_review with an hours conflict', () =>
+    expect(alertStatusLabel({ status: 'pending', verification: 'needs_review', hoursCheck: 'conflict' })).toEqual({ text: "Needs review · the hours we found don't match", tone: 'wait' }));
+  it('hours conflict only matters while in review', () =>
+    expect(alertStatusLabel({ status: 'sent', verification: 'verified', hoursCheck: 'conflict' }).text).toBe('Sent · address verified'));
+  it('needs_review with other hours values is unchanged', () =>
+    expect(alertStatusLabel({ status: 'pending', verification: 'needs_review', hoursCheck: 'unconfirmed' }).text).toBe("Needs review · we couldn't confirm the address"));
   it('rejected', () => expect(l('pending', 'rejected').tone).toBe('bad'));
   it('queued', () => expect(l('pending', 'verified')).toEqual({ text: 'Queued', tone: 'wait' }));
   it('sending', () => expect(l('sending', 'verified')).toEqual({ text: 'Sending', tone: 'wait' }));

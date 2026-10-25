@@ -1,4 +1,5 @@
 import { tavily } from '@tavily/core';
+import { checkHoursInText, type HoursCheck } from './hours.js';
 
 export interface TavilyLike {
   search(query: string): Promise<{ results: Array<{ title: string; content: string; url: string }> }>;
@@ -34,33 +35,40 @@ function norm(s: string, dropUnit = false): string {
 }
 
 // Search results are untrusted web text: we only compare strings, never act on or echo them.
-async function matches(client: TavilyLike, name: string, address: string): Promise<boolean | 'error'> {
+// Returns the raw text of every result containing both name and street ([] when none match).
+async function matches(client: TavilyLike, name: string, address: string): Promise<string[] | 'error'> {
   const street = norm(address.split(',')[0] ?? '', true);
   const n = norm(name);
   // Weak needles verify too easily: need "<number> <street of 2+ chars>" and a name of 4+ chars or 2+ words.
   const rest = /^ \d+ (.+) $/.exec(street)?.[1] ?? '';
   const nameOk = n.trim().length >= 4 || n.trim().split(' ').length >= 2;
-  if (rest.length < 2 || BARE.has(rest) || !nameOk) return false;
+  if (rest.length < 2 || BARE.has(rest) || !nameOk) return [];
   const query = `${name.slice(0, 100)} ${address.slice(0, 150)} NYC food shelter`;
   try {
     const { results } = await client.search(query);
-    return (results ?? []).some((r) => {
-      const text = norm(`${r.title ?? ''} ${r.content ?? ''}`);
-      return text.includes(n) && text.includes(street);
-    });
+    return (results ?? [])
+      .map((r) => `${r.title ?? ''} ${r.content ?? ''}`)
+      .filter((raw) => {
+        const text = norm(raw);
+        return text.includes(n) && text.includes(street);
+      });
   } catch {
     return 'error';
   }
 }
 
-// v1 matching checks provider name plus street address only; startsAt/endsAt are accepted but not compared.
+// Matching checks provider name plus street address. Hours only demote on a clear conflict; absent hours do not.
 export async function verifyAlert(
   client: TavilyLike,
   input: { providerName: string; address: string; startsAt: Date; endsAt: Date },
-): Promise<{ status: 'verified' | 'needs_review'; detail: string }> {
+): Promise<{ status: 'verified' | 'needs_review'; detail: string; hoursCheck: HoursCheck }> {
   const m = await matches(client, input.providerName, input.address);
-  if (m === true) return { status: 'verified', detail: 'web result matches provider name and address' };
-  return { status: 'needs_review', detail: m === 'error' ? 'verification service error' : 'no web result matches provider name and address' };
+  if (m === 'error') return { status: 'needs_review', detail: 'verification service error', hoursCheck: 'unconfirmed' };
+  if (m.length === 0) return { status: 'needs_review', detail: 'no web result matches provider name and address', hoursCheck: 'unconfirmed' };
+  const checks = m.map((text) => checkHoursInText(text, input.startsAt, input.endsAt));
+  const hoursCheck: HoursCheck = checks.includes('confirmed') ? 'confirmed' : checks.includes('conflict') ? 'conflict' : 'unconfirmed';
+  if (hoursCheck === 'conflict') return { status: 'needs_review', detail: 'hours conflict', hoursCheck };
+  return { status: 'verified', detail: 'web result matches provider name and address', hoursCheck };
 }
 
 export async function verifyProvider(
@@ -68,6 +76,6 @@ export async function verifyProvider(
   input: { name: string; address: string },
 ): Promise<{ status: 'likely_legit' | 'flagged'; detail: string }> {
   const m = await matches(client, input.name, input.address);
-  if (m === true) return { status: 'likely_legit', detail: 'web result matches provider name and address' };
+  if (m !== 'error' && m.length) return { status: 'likely_legit', detail: 'web result matches provider name and address' };
   return { status: 'flagged', detail: m === 'error' ? 'verification service error' : 'no web result matches provider name and address' };
 }

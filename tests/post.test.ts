@@ -118,6 +118,21 @@ describe('postAlert', () => {
     expect(deps.enqueue).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['confirmed', 'Open daily 8am-9pm', 'verified', true],
+    ['unconfirmed', '', 'verified', true],
+    ['conflict', 'Open Sat 8am-9pm', 'needs_review', false],
+  ])('stores hours_check %s (status %s)', async (hc, hours, status, enq) => {
+    // alert starts 13:00Z Monday 2026-06-01 = 9am EDT
+    const tavily = { search: vi.fn(async () => ({ results: [{ title: 'Test Pantry', content: `Test Pantry at 123 Main Street. ${hours}`, url: 'https://x.test' }] })) };
+    const deps = mk({ tavily });
+    const r = await postAlert(deps, input({ startsAt: new Date(NOW.getTime() + HOUR), endsAt: new Date(NOW.getTime() + 3 * HOUR) }));
+    expect(r.status).toBe(status);
+    const row = (await pool.query('SELECT verification_status, hours_check FROM alerts WHERE id = $1', [r.alertId])).rows[0];
+    expect(row).toEqual({ verification_status: status, hours_check: hc });
+    expect(deps.enqueue).toHaveBeenCalledTimes(enq ? 1 : 0);
+  });
+
   it('geocode null: needs_review with null coordinates, no enqueue', async () => {
     const deps = mk({ geo: null });
     const r = await postAlert(deps, input());

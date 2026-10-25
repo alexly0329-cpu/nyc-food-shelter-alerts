@@ -80,12 +80,12 @@ export async function postAlert(deps: PostAlertDeps, input: PostAlertInput): Pro
   const insertedId = await withTx(db, async (c) => {
     const ins = await c.query(
       `INSERT INTO alerts (provider_id, service_type, address, lat, lng, message, starts_at, ends_at,
-                           capacity_cap, urgent, verification_status, idempotency_key)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                           capacity_cap, urgent, verification_status, hours_check, idempotency_key)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        ON CONFLICT (provider_id, idempotency_key) DO NOTHING
        RETURNING id`,
       [input.providerId, input.serviceType, input.address, geo?.lat ?? null, geo?.lng ?? null, input.message,
-        input.startsAt, input.endsAt, input.capacityCap, input.urgent, status, input.idempotencyKey],
+        input.startsAt, input.endsAt, input.capacityCap, input.urgent, status, v.hoursCheck, input.idempotencyKey],
     );
     if (!ins.rows[0]) return null;
     await c.query(`INSERT INTO audit_log (actor_id, action, target_type, target_id) VALUES ($1, 'alert.post', 'alert', $2)`, [

@@ -398,6 +398,9 @@ describe('admin', () => {
     const id = await mkNeedsReview(p.providerId, true);
     const list = await get('/api/admin/alerts?status=needs_review', a.cookie);
     expect(list.json().map((x: { id: string }) => x.id)).toEqual([id]);
+    expect(list.json()[0].hoursCheck).toBe('unconfirmed');
+    await pool.query("UPDATE alerts SET hours_check = 'conflict' WHERE id = $1", [id]);
+    expect((await get('/api/admin/alerts?status=needs_review', a.cookie)).json()[0].hoursCheck).toBe('conflict');
     const r1 = await post(`/api/admin/alerts/${id}/approve`, {}, a.cookie);
     expect(r1.statusCode).toBe(200);
     const r2 = await post(`/api/admin/alerts/${id}/approve`, {}, a.cookie);

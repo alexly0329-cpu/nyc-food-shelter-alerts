@@ -43,6 +43,7 @@ export function touchesQuietHours(start, end) {
 
 export function alertStatusLabel(a) {
   if (a.verification === 'rejected') return { text: 'Rejected · address or details not accepted', tone: 'bad' };
+  if (a.verification === 'needs_review' && a.hoursCheck === 'conflict') return { text: "Needs review · the hours we found don't match", tone: 'wait' };
   if (a.verification === 'needs_review') return { text: "Needs review · we couldn't confirm the address", tone: 'wait' };
   if (a.status === 'sent') return { text: 'Sent · address verified', tone: 'ok' };
   if (a.status === 'sending') return { text: 'Sending', tone: 'wait' };

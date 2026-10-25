@@ -52,11 +52,12 @@ describe('alertTotals', () => {
     const rows = await alertTotals(pool, a);
     expect(rows.map((r) => r.alertId)).toEqual([recent, old]);
     expect(rows[0]).toMatchObject({ title: 'recent', status: 'pending', verification: 'verified', capacityCap: 10, texted: 5, delivered: 2, failed: 2, stopped: 2 });
+    expect(rows[0].hoursCheck).toBe('unconfirmed');
     expect(rows[1]).toMatchObject({ texted: 0, delivered: 0, failed: 0, stopped: 0 });
     expect(rows[0].startsAt).toBeInstanceOf(Date);
     expect(rows.map((r) => r.alertId)).not.toContain(other);
     expect(Object.keys(rows[0]).sort()).toEqual(
-      ['address', 'alertId', 'capacityCap', 'delivered', 'endsAt', 'failed', 'serviceType', 'startsAt', 'status', 'stopped', 'texted', 'title', 'verification'],
+      ['address', 'alertId', 'capacityCap', 'delivered', 'endsAt', 'failed', 'hoursCheck', 'serviceType', 'startsAt', 'status', 'stopped', 'texted', 'title', 'verification'],
     );
   });
 });
