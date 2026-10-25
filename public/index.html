@@ -35,7 +35,7 @@
     <section class="hero" aria-labelledby="heroH">
       <div class="hero-in">
         <h1 id="heroH" tabindex="-1"><span>When a pantry has food,</span><span class="two">the neighbors hear first.</span></h1>
-        <p class="sub">Food banks and shelters send a short text or call to nearby people who signed up in person. Nothing goes out until the address checks out.</p>
+        <p class="sub">Food banks and shelters send a short text or call to nearby people who signed up in person. Nothing goes out until the address checks out or a person approves it.</p>
         <div class="cta">
           <a class="btn" href="#apply">Apply to join</a>
           <button class="textlink" type="button" data-scroll="story">See how it works</button>
@@ -50,7 +50,7 @@
       <ol class="steps">
         <li><span class="num">01</span><h3>Someone says yes</h3><p>Staff enroll a person in person. They read a short note out loud, the person says yes, and we record it.</p></li>
         <li><span class="num">02</span><h3>The pantry posts an alert</h3><p>It writes &ldquo;Hot meals, 5 to 7 pm&rdquo; and sets a cap of 60 people.</p></li>
-        <li><span class="num">03</span><h3>We check before sending</h3><p>We look for a web page that matches the pantry&rsquo;s name and address and, if the page lists hours, whether they fit. If we can&rsquo;t confirm, the alert is held for a person to review and nothing is sent.</p></li>
+        <li><span class="num">03</span><h3>We check before sending</h3><p>We look for a web page that names the pantry and its street. If none matches, or the hours a page lists clearly don&rsquo;t cover the start time, the alert is held for a person to review and nothing is sent.</p></li>
         <li><span class="num">04</span><h3>Neighbors hear first</h3><p>The nearest people who agreed, up to 60, get a text or a call. Reply STOP and the messages end.</p></li>
       </ol>
     </section>
@@ -61,10 +61,10 @@
       <ul class="rules">
         <li><span class="tag">Never</span><span>send an alert whose address we couldn&rsquo;t confirm, unless a person has reviewed and approved it.</span></li>
         <li><span class="tag">Never</span><span>message more people than the cap.</span></li>
-        <li><span class="tag">Never</span><span>message the same person twice in 24 hours.</span></li>
+        <li><span class="tag">Never</span><span>message the same person more than once a day.</span></li>
         <li><span class="tag">Never</span><span>message anyone after they reply STOP, unless they say yes again in person.</span></li>
         <li><span class="tag">Never</span><span>send after an alert&rsquo;s end time.</span></li>
-        <li><span class="tag">Never</span><span>send between 9 pm and 8 am, unless the alert is marked urgent.</span></li>
+        <li><span class="tag">Never</span><span>start sending between 9 pm and 8 am, unless the alert is marked urgent.</span></li>
         <li><span class="tag">Never</span><span>show a provider anyone&rsquo;s phone number. Providers see totals only.</span></li>
       </ul>
     </section>
@@ -78,7 +78,7 @@
     </section>
 
     <footer class="lp-foot">
-      <p>Prototype. Not open to real providers yet.</p>
+      <p>Prototype. Not open to real providers yet. Applications are for testing only.</p>
       <p><a href="https://github.com/alexly0329-cpu/nyc-food-shelter-alerts" rel="noopener noreferrer">github.com/alexly0329-cpu/nyc-food-shelter-alerts</a></p>
     </footer>
   </div>
@@ -170,7 +170,7 @@
         <div class="bubble" id="bubble"></div>
       </div>
       <div class="stack">
-        <p class="note">We check the address and hours before sending. If we can't confirm them, nothing goes out and you'll see why.</p>
+        <p class="note">We check the address, and the hours when a web page lists them, before sending. If we can't confirm the address or the hours clearly don't fit, a person reviews the alert first and you'll see it as held.</p>
         <p class="note warn" id="quiet" hidden>This runs into quiet hours (9 pm to 8 am). Most people won't be messaged unless you mark it urgent.</p>
       </div>
     </div>

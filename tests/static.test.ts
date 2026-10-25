@@ -154,7 +154,7 @@ describe('landing page', () => {
   const home = html.slice(html.indexOf('id="v-home"'), html.indexOf('<!-- LOGIN -->'));
   it('hero has the two-line headline, sub line and both calls to action', () => {
     expect(home).toMatch(/<h1[^>]*>\s*<span>When a pantry has food,<\/span><span class="two">the neighbors hear first\.<\/span>\s*<\/h1>/);
-    expect(home).toContain('Nothing goes out until the address checks out.');
+    expect(home).toContain('Nothing goes out until the address checks out or a person approves it.');
     expect(home).toContain('href="#login">Sign in</a>');
     expect(home.match(/href="#apply">Apply to join<\/a>/g)?.length).toBe(3);
     expect(home).toMatch(/<button[^>]*data-scroll="story"[^>]*>See how it works<\/button>/);
