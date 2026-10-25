@@ -101,6 +101,8 @@ Use signed webhooks (JWT signature) and set the signature secret as `VONAGE_SIGN
 - Only people within `MAX_ALERT_KM` (default 5 km) of the alert address are messaged, nearest first, up to the alert's cap (5 to 500).
 - Nothing is sent outside the alert's window, between 9 pm and 8 am New York time unless urgent, or from a provider that is not approved. Alerts that cannot be verified (name and street address found by Tavily, address located) wait in `needs_review` for an admin.
 
+**Tavily matching.** A search result verifies an alert only if the same result contains the provider name and the street number plus street name (whole words; the part of the address before the first comma). Street suffixes (Ave/Avenue, St/Street, ...) and direction words (N/North, ...) are normalized, a unit suffix in the alert address (Apt, Unit, Ste, Fl, Rm, `#`) is dropped, and `St` right after the house number reads as Saint. Matching stays strict about the number and direction. Opening hours are read heuristically from those results in New York time and stored as `hours_check`: `confirmed` (listed hours cover the alert start), `unconfirmed` (no hours found) or `conflict` (hours are listed and clearly do not cover it). Policy is soft: `confirmed` and `unconfirmed` alerts stay `verified`; only `conflict` sends the alert to `needs_review`.
+
 ## Admin workflow
 
 There is no admin screen in v1: approvals are API calls. Send `Content-Type: application/json` on every POST (the API returns 415 otherwise).

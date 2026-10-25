@@ -31,8 +31,8 @@ Do or decide each item before real people are enrolled.
 
 ## Known gaps in v1 (decide, then fix or accept)
 
-- [ ] **Hours are NOT verified by Tavily.** The spec says address and hours; v1 checks provider name and street address only. Admins must judge hours themselves.
-- [ ] **Address matching is strict.** "W 125th St" vs "West 125th Street", apartment suffixes and "St. Mary's" fail to match, so many real alerts will land in `needs_review` and need an admin approval.
+- [ ] **Hours checks are heuristic.** Hours are parsed from Tavily search-result text (New York time) and stored as `hours_check`. A `conflict` (listed hours do not cover the alert start) holds the alert in `needs_review`; hours that are absent (`unconfirmed`) do not, so such alerts are still sent. Parsing can miss or misread formats (for example `9-5` with no am/pm is ignored), so admins should still judge hours when it matters.
+- [ ] **Address matching is strict.** Direction words ("W" and "West"), unit suffixes in the alert address and a leading "St" (Saint) are now normalized, but other spelling differences (typos, "Avenue of the Americas" vs "6th Ave") still fail, so some real alerts will land in `needs_review` and need an admin approval.
 - [ ] **The address lookup still trusts mid-confidence matches.** Fallback matches and confidence below 0.7 are rejected (the alert goes to `needs_review`); admins must still watch for wrong locations.
 - [ ] **Language only chooses the voice-call locale.** Message text is sent exactly as the provider wrote it; there is no translation. Tell providers to write in the recipient's language.
 - [ ] **A send that times out (10 s) leaves its delivery claimed with no `vonage_id`.** The outcome is unknown and a late status webhook cannot match it; the person is never messaged twice. Review these rows by hand.
