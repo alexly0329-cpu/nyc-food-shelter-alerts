@@ -16,22 +16,31 @@ export function createTavilyClient(apiKey?: string): TavilyLike {
 
 const SUFFIXES: Record<string, string> = {
   ave: 'avenue', st: 'street', blvd: 'boulevard', rd: 'road', pl: 'place', dr: 'drive', ln: 'lane', ct: 'court',
+  n: 'north', s: 'south', e: 'east', w: 'west',
 };
+const UNIT_MARKERS = new Set(['apt', 'apartment', 'unit', 'ste', 'suite', 'fl', 'floor', 'rm', 'room']);
+const BARE = new Set(['north', 'south', 'east', 'west', 'saint']);
 
-// Lowercase, punctuation to spaces, suffix abbreviations expanded, padded for whole-word matching.
-function norm(s: string): string {
-  const words = s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean);
-  return ` ${words.map((w) => SUFFIXES[w] ?? w).join(' ')} `;
+// Lowercase, punctuation to spaces, suffix and direction abbreviations expanded, padded for whole-word matching.
+// "st" straight after a house number is a saint ("10 St Marks Pl"), anywhere else a street.
+// dropUnit (alert address only): cut at the first unit marker after the house number.
+function norm(s: string, dropUnit = false): string {
+  let words = (dropUnit ? s.replace(/#/g, ' unit ') : s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean);
+  if (dropUnit) {
+    const i = words.findIndex((w, k) => k >= 1 && UNIT_MARKERS.has(w));
+    if (i >= 0) words = words.slice(0, i);
+  }
+  return ` ${words.map((w, i) => (w === 'st' && /^\d+$/.test(words[i - 1] ?? '') ? 'saint' : SUFFIXES[w] ?? w)).join(' ')} `;
 }
 
 // Search results are untrusted web text: we only compare strings, never act on or echo them.
 async function matches(client: TavilyLike, name: string, address: string): Promise<boolean | 'error'> {
-  const street = norm(address.split(',')[0] ?? '');
+  const street = norm(address.split(',')[0] ?? '', true);
   const n = norm(name);
   // Weak needles verify too easily: need "<number> <street of 2+ chars>" and a name of 4+ chars or 2+ words.
   const rest = /^ \d+ (.+) $/.exec(street)?.[1] ?? '';
   const nameOk = n.trim().length >= 4 || n.trim().split(' ').length >= 2;
-  if (rest.length < 2 || !nameOk) return false;
+  if (rest.length < 2 || BARE.has(rest) || !nameOk) return false;
   const query = `${name.slice(0, 100)} ${address.slice(0, 150)} NYC food shelter`;
   try {
     const { results } = await client.search(query);

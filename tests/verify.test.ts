@@ -69,6 +69,53 @@ describe('weak needles', () => {
   });
 });
 
+describe('address normalization', () => {
+  const run = (name: string, address: string, text: string) =>
+    verifyAlert(fake([hit('t', text)]), { ...alert, providerName: name, address }).then((r) => r.status);
+  const P = 'Marcy Community Pantry';
+  it('direction words are equivalent', async () => {
+    expect(await run(P, '10 W 125th St', `${P} 10 West 125th Street`)).toBe('verified');
+    expect(await run(P, '10 West 125th Street', `${P} 10 W. 125th St.`)).toBe('verified');
+    expect(await run(P, '10 N Main St', `${P} 10 North Main Street`)).toBe('verified');
+    expect(await run(P, '10 S Main St', `${P} 10 south main street`)).toBe('verified');
+    expect(await run(P, '10 E Main St', `${P} 10 East Main Street`)).toBe('verified');
+  });
+  it('different direction does not match', async () => {
+    expect(await run(P, '10 W 125th St', `${P} 10 E 125th Street`)).toBe('needs_review');
+    expect(await run(P, '10 W 125th St', `${P} 10 East 125th Street`)).toBe('needs_review');
+  });
+  it('unit suffixes in the alert address are dropped', async () => {
+    const page = `${P} at 214 Marcy Avenue`;
+    for (const a of ['214 Marcy Ave Apt 3', '214 Marcy Ave #3', '214 Marcy Ave, Apt 3', '214 Marcy Ave Apartment 3B', '214 Marcy Ave Unit 2',
+      '214 Marcy Ave Ste 100', '214 Marcy Ave Suite 5', '214 Marcy Ave Fl 2', '214 Marcy Ave Floor 2', '214 Marcy Ave Rm 4', '214 Marcy Ave Room 4', '214 Marcy Ave # 3']) {
+      expect(await run(P, a, page), a).toBe('verified');
+    }
+  });
+  it('unit rule does not weaken number/street checks', async () => {
+    expect(await run(P, '214 Marcy Ave Apt 3', `${P} 2140 Marcy Avenue`)).toBe('needs_review');
+    expect(await run(P, '214 Marcy Ave Apt 3', `${P} 1214 Marcy Avenue`)).toBe('needs_review');
+    expect(await run(P, '214 Marcy Ave Apt 3', `${P} 214 Marcy Place`)).toBe('needs_review');
+    expect(await run(P, '214 Apt 3', `${P} 214 Apt 3`)).toBe('needs_review');
+  });
+  it('st right after the number is saint, elsewhere street', async () => {
+    expect(await run(P, '10 St Marks Pl', `${P} 10 Saint Marks Place`)).toBe('verified');
+    expect(await run(P, '10 Saint Marks Pl', `${P} 10 St. Marks Place`)).toBe('verified');
+    expect(await run(P, "5 St. Mary's Ct", `${P} 5 Saint Mary's Court`)).toBe('verified');
+    expect(await run(P, '214 Marcy St', `${P} 214 Marcy Street`)).toBe('verified');
+    expect(await run(P, '214 Marcy St', `${P} 214 Marcy Saint`)).toBe('needs_review');
+    expect(await run(P, '10 St Marks Pl', `${P} 10 Street Marks Place`)).toBe('needs_review');
+  });
+  it('number plus a bare direction or st is a weak needle', async () => {
+    expect(await run(P, '5 N', `${P} 5 North`)).toBe('needs_review');
+    expect(await run(P, '5 St', `${P} 5 Saint`)).toBe('needs_review');
+    expect(await run(P, '5 A', `${P} 5 A`)).toBe('needs_review');
+  });
+  it('name and street in different results do not match', async () => {
+    const r = await verifyAlert(fake([hit('t', P), hit('t', '10 West 125th Street')]), { ...alert, address: '10 W 125th St' });
+    expect(r.status).toBe('needs_review');
+  });
+});
+
 describe('verifyProvider', () => {
   const p = { name: 'Marcy Community Pantry', address: '214 Marcy Ave' };
   it('match is likely_legit', async () => {
