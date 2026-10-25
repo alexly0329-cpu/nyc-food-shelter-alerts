@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alertStatusLabel, errorMessage, friendlyError, startTooFar, toIso, touchesQuietHours } from '../public/lib.js';
+import { adminErrorMessage, alertStatusLabel, errorMessage, formatEt, friendlyError, hoursLabel, providerStatusLabel, startTooFar, tavilyLabel, toIso, touchesQuietHours } from '../public/lib.js';
 
 describe('errorMessage', () => {
   const cases: Record<string, string> = {
@@ -77,4 +77,75 @@ describe('startTooFar and the 24h message', () => {
   });
   it('shows the server message as-is', () =>
     expect(friendlyError('INVALID_INPUT', 'startsAt must be within 24 hours')).toBe('startsAt must be within 24 hours'));
+});
+
+describe('providerStatusLabel', () => {
+  it('maps each status to text and tone', () => {
+    expect(providerStatusLabel('pending')).toEqual({ text: 'Pending review', tone: 'wait' });
+    expect(providerStatusLabel('approved')).toEqual({ text: 'Approved', tone: 'ok' });
+    expect(providerStatusLabel('suspended')).toEqual({ text: 'Suspended', tone: 'bad' });
+  });
+  it('unknown status is not shown as approved', () => expect(providerStatusLabel('weird')).toEqual({ text: 'Unknown status', tone: 'bad' }));
+});
+
+describe('tavilyLabel', () => {
+  it('likely_legit', () => expect(tavilyLabel({ status: 'likely_legit', detail: 'x' })).toEqual({ text: 'Looks real on the web', tone: 'ok' }));
+  it('flagged, missing or malformed', () => {
+    const bad = { text: "We couldn't confirm it online", tone: 'wait' };
+    expect(tavilyLabel({ status: 'flagged', detail: 'x' })).toEqual(bad);
+    expect(tavilyLabel(null)).toEqual(bad);
+    expect(tavilyLabel(undefined)).toEqual(bad);
+    expect(tavilyLabel('likely_legit')).toEqual(bad);
+  });
+});
+
+describe('hoursLabel', () => {
+  it('maps hours checks', () => {
+    expect(hoursLabel('confirmed')).toEqual({ text: 'Hours match', tone: 'ok' });
+    expect(hoursLabel('unconfirmed')).toEqual({ text: 'No hours found online', tone: 'wait' });
+    expect(hoursLabel('conflict')).toEqual({ text: "Hours don't match", tone: 'bad' });
+  });
+  it('missing is treated as no hours found', () => {
+    expect(hoursLabel(null).text).toBe('No hours found online');
+    expect(hoursLabel(undefined).text).toBe('No hours found online');
+  });
+});
+
+describe('formatEt', () => {
+  it('winter instant (EST, UTC-5)', () => expect(formatEt('2026-01-15T22:00:00Z')).toBe('Thu Jan 15, 5:00 PM'));
+  it('summer instant (EDT, UTC-4)', () => expect(formatEt('2026-10-24T21:00:00Z')).toBe('Sat Oct 24, 5:00 PM'));
+  it('spring forward 2026-03-08: 1:59 EST then 3:00 EDT', () => {
+    expect(formatEt('2026-03-08T06:59:00Z')).toBe('Sun Mar 8, 1:59 AM');
+    expect(formatEt('2026-03-08T07:00:00Z')).toBe('Sun Mar 8, 3:00 AM');
+  });
+  it('fall back 2026-11-01: 1:30 EDT, then 1:30 EST, then 2:00 EST', () => {
+    expect(formatEt('2026-11-01T05:30:00Z')).toBe('Sun Nov 1, 1:30 AM');
+    expect(formatEt('2026-11-01T06:30:00Z')).toBe('Sun Nov 1, 1:30 AM');
+    expect(formatEt('2026-11-01T07:00:00Z')).toBe('Sun Nov 1, 2:00 AM');
+  });
+  it('uses New York midnight, not UTC date', () => expect(formatEt('2026-07-01T03:59:00Z')).toBe('Tue Jun 30, 11:59 PM'));
+  it('uses a plain ASCII space before AM/PM', () => expect(formatEt('2026-01-15T22:00:00Z')).not.toMatch(/[^\x20-\x7e]/));
+  it('invalid input gives an empty string', () => {
+    expect(formatEt('nope')).toBe('');
+    expect(formatEt(undefined)).toBe('');
+    expect(formatEt(null)).toBe('');
+  });
+});
+
+describe('admin error mappings', () => {
+  const cases: Record<string, string> = {
+    provider_not_approved: "That provider isn't approved, so this alert can't be sent.",
+    not_needs_review: 'That alert was already handled.',
+    geocode_failed: "We couldn't find that address. Fix it before approving.",
+    not_found: 'That item no longer exists. Refresh the list.',
+    enqueue_failed: "We couldn't queue that alert. It is still waiting for review. Try again.",
+  };
+  for (const [code, msg] of Object.entries(cases)) it(`errorMessage maps ${code}`, () => expect(errorMessage(code)).toBe(msg));
+  it('403 on an admin action says to sign in as an admin', () =>
+    expect(adminErrorMessage(403, 'forbidden')).toBe("Your account can't do admin actions. Sign in as an admin."));
+  it('other statuses use the body code', () => {
+    expect(adminErrorMessage(409, 'not_needs_review')).toBe('That alert was already handled.');
+    expect(adminErrorMessage(400, 'INVALID_PHONE')).toBe(errorMessage('INVALID_PHONE'));
+    expect(adminErrorMessage(0, undefined)).toBe('Something went wrong. Try again.');
+  });
 });

@@ -8,6 +8,11 @@ const MESSAGES = {
   PROVIDER_NOT_APPROVED: "Your organization isn't approved to send alerts yet.",
   invalid_credentials: 'Email or password is wrong.',
   email_taken: 'That email already has an application.',
+  provider_not_approved: "That provider isn't approved, so this alert can't be sent.",
+  not_needs_review: 'That alert was already handled.',
+  geocode_failed: "We couldn't find that address. Fix it before approving.",
+  not_found: 'That item no longer exists. Refresh the list.',
+  enqueue_failed: "We couldn't queue that alert. It is still waiting for review. Try again.",
   403: "Your account can't do that right now. Check the notice at the top of the Alerts page.",
 };
 
@@ -60,4 +65,40 @@ export function toIso(v) {
 /** True when the start is more than 24 hours after `now` (mirrors the server rule). */
 export function startTooFar(startIso, now = new Date()) {
   return new Date(startIso).getTime() > now.getTime() + 24 * 3600 * 1000;
+}
+
+/** Admin action errors: a 403 here means the account is not an admin (the staff 403 text points at the wrong page). */
+export function adminErrorMessage(status, code) {
+  return status === 403 ? "Your account can't do admin actions. Sign in as an admin." : errorMessage(code ?? '');
+}
+
+export function providerStatusLabel(status) {
+  if (status === 'pending') return { text: 'Pending review', tone: 'wait' };
+  if (status === 'approved') return { text: 'Approved', tone: 'ok' };
+  if (status === 'suspended') return { text: 'Suspended', tone: 'bad' };
+  return { text: 'Unknown status', tone: 'bad' };
+}
+
+/** `result` is the stored Tavily check ({ status, detail }) or null. */
+export function tavilyLabel(result) {
+  return result?.status === 'likely_legit'
+    ? { text: 'Looks real on the web', tone: 'ok' }
+    : { text: "We couldn't confirm it online", tone: 'wait' };
+}
+
+export function hoursLabel(h) {
+  if (h === 'confirmed') return { text: 'Hours match', tone: 'ok' };
+  if (h === 'conflict') return { text: "Hours don't match", tone: 'bad' };
+  return { text: 'No hours found online', tone: 'wait' };
+}
+
+const ET = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+});
+/** ISO instant to New York time like "Fri Oct 24, 5:00 PM"; '' if invalid. Built from parts so ICU spacing never leaks in. */
+export function formatEt(iso) {
+  const d = new Date(iso ?? NaN);
+  if (isNaN(d)) return '';
+  const p = Object.fromEntries(ET.formatToParts(d).map((x) => [x.type, x.value]));
+  return `${p.weekday} ${p.month} ${p.day}, ${p.hour}:${p.minute} ${p.dayPeriod}`;
 }
