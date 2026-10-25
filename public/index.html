@@ -12,9 +12,12 @@
 
 <nav class="main" id="nav" aria-label="Main" hidden>
   <div class="who"><b id="orgName"></b>Signed in</div>
-  <a href="#alerts" data-v="alerts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 17h14l-2-3v-4a5 5 0 0 0-10 0v4zM10 20h4"/></svg>Alerts</a>
-  <a href="#new" data-v="new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New alert</a>
-  <a href="#enroll" data-v="enroll"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="10" cy="8" r="3.5"/><path d="M3 20c0-4 3-6 7-6s7 2 7 6M19 8v6M16 11h6"/></svg>Enroll</a>
+  <a href="#alerts" data-v="alerts" data-role="staff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 17h14l-2-3v-4a5 5 0 0 0-10 0v4zM10 20h4"/></svg>Alerts</a>
+  <a href="#new" data-v="new" data-role="staff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New alert</a>
+  <a href="#enroll" data-v="enroll" data-role="staff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="10" cy="8" r="3.5"/><path d="M3 20c0-4 3-6 7-6s7 2 7 6M19 8v6M16 11h6"/></svg>Enroll</a>
+  <a href="#admin-providers" data-v="admin-providers" data-role="admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M3 21V9l9-5 9 5v12M9 21v-6h6v6"/></svg>Providers</a>
+  <a href="#admin-alerts" data-v="admin-alerts" data-role="admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 17h14l-2-3v-4a5 5 0 0 0-10 0v4zM10 20h4"/></svg>Held alerts</a>
+  <a href="#admin-optout" data-v="admin-optout" data-role="admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>Opt out</a>
   <button class="signout" type="button" id="signout"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9"/></svg>Sign out</button>
 </nav>
 
@@ -57,7 +60,6 @@
   <h1 tabindex="-1">Your alerts</h1>
   <p class="lede">You see totals only. Recipient phone numbers stay private.</p>
   <p class="banner" id="statusBanner" role="status" hidden></p>
-  <p class="banner" id="adminNote" hidden>Admin accounts approve providers and held alerts through the API for now.</p>
   <div class="list" id="alertList" aria-live="polite"></div>
 </main>
 
@@ -157,6 +159,44 @@
     <p class="err" id="optErr" role="alert" tabindex="-1" hidden></p>
     <p class="banner" id="optOk" role="status" hidden>Done. We won't message that number again.</p>
     <button class="btn plain" type="submit" id="optBtn">Stop messages to this number</button>
+  </form>
+</main>
+
+<!-- ADMIN: PROVIDERS -->
+<main class="view" id="v-admin-providers">
+  <h1 tabindex="-1">Providers</h1>
+  <p class="lede">Check each application, then approve or suspend.</p>
+  <form id="providerFilter" autocomplete="off">
+    <fieldset>
+      <legend class="legend">Show providers that are</legend>
+      <div class="choices">
+        <label class="choice"><input type="radio" name="pf" value="pending" checked><span>Pending</span></label>
+        <label class="choice"><input type="radio" name="pf" value="approved"><span>Approved</span></label>
+        <label class="choice"><input type="radio" name="pf" value="suspended"><span>Suspended</span></label>
+      </div>
+    </fieldset>
+  </form>
+  <p class="err" id="provErr" role="alert" tabindex="-1" hidden></p>
+  <div class="list" id="providerList" aria-live="polite"></div>
+</main>
+
+<!-- ADMIN: HELD ALERTS -->
+<main class="view" id="v-admin-alerts">
+  <h1 tabindex="-1">Held alerts</h1>
+  <p class="lede">These alerts did not pass our checks. Nothing is sent until you approve it.</p>
+  <p class="err" id="holdErr" role="alert" tabindex="-1" hidden></p>
+  <div class="list" id="heldList" aria-live="polite"></div>
+</main>
+
+<!-- ADMIN: OPT OUT -->
+<main class="view" id="v-admin-optout">
+  <h1 tabindex="-1">Opt a number out</h1>
+  <p class="lede">Enter a number to end all messages to it. It works whether or not the number is enrolled.</p>
+  <form id="adminOptoutForm" autocomplete="off">
+    <div><label for="aoPh">Mobile number</label><input id="aoPh" type="tel" inputmode="tel" autocomplete="off" placeholder="(718) 555-0142" required></div>
+    <p class="err" id="aoErr" role="alert" tabindex="-1" hidden></p>
+    <p class="banner" id="aoOk" role="status" hidden>Done. We won't message that number again.</p>
+    <button class="btn plain" type="submit" id="aoBtn">Stop messages to this number</button>
   </form>
 </main>
 

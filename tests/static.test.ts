@@ -96,6 +96,31 @@ describe('CSP-clean source', () => {
     expect(html).toContain("Done. We won't message that number again.");
     expect(js).toMatch(/\$\('#optPh'\)\.value = ''/);
   });
+  it('admin views exist with labelled controls and no staff-only leftovers', () => {
+    for (const id of ['v-admin-providers', 'v-admin-alerts', 'v-admin-optout']) expect(html).toContain(`id="${id}"`);
+    for (const h of ['#admin-providers', '#admin-alerts', '#admin-optout']) expect(html).toContain(`href="${h}"`);
+    expect(html).not.toContain('through the API for now');
+    expect(html).toMatch(/<fieldset>\s*<legend class="legend">Show providers that are<\/legend>/);
+    expect(html).toMatch(/<input id="aoPh"[^>]*autocomplete="off"/);
+    expect(html).toMatch(/<label for="aoPh">/);
+    expect(html).toContain("Done. We won't message that number again.");
+    expect(html).toMatch(/id="provErr" role="alert"/);
+    expect(html).toMatch(/id="holdErr" role="alert"/);
+  });
+  it('admin glue: 401 goes through signedOut, confirm text is exact, phone never stored', () => {
+    const js = readFileSync('public/app.js', 'utf8');
+    expect(js).toMatch(/async function adminApi[\s\S]*?status === 401\) \{ signedOut\(\); return null; \}/);
+    expect(js).toContain("api('POST', '/api/admin/optout'".replace('api(', 'adminApi('));
+    expect(js).toContain("Alerts they already queued won't send.");
+    expect(js).toContain('Reject this alert? It will never be sent.');
+    expect(js).toMatch(/\$\('#aoPh'\)\.value = ''/);
+    expect(js).not.toMatch(/confirm\(|alert\(|localStorage|sessionStorage|console\./);
+  });
+  it('every script file the page loads is covered by the banned-pattern check', () => {
+    const srcs = [...html.matchAll(/<script\b[^>]*\bsrc="\/([^"]+)"/g)].map((m) => m[1]);
+    expect(srcs).toEqual(['app.js']);
+    for (const f of ['app.js', 'lib.js']) expect(readFileSync(`public/${f}`, 'utf8')).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/);
+  });
   it('consent script promises at most one message a day', () => {
     expect(html).toContain('We send no more than one message a day.');
     expect(html).not.toContain('few at most each week');

@@ -1,7 +1,7 @@
-import { alertStatusLabel, errorMessage, friendlyError, startTooFar, toIso, touchesQuietHours } from '/lib.js';
+import { adminErrorMessage, alertStatusLabel, errorMessage, formatEt, friendlyError, hoursLabel, providerStatusLabel, startTooFar, tavilyLabel, toIso, touchesQuietHours } from '/lib.js';
 
 const $ = (s) => document.querySelector(s);
-const views = ['login', 'apply', 'alerts', 'new', 'enroll'];
+const views = ['login', 'apply', 'alerts', 'new', 'enroll', 'admin-providers', 'admin-alerts', 'admin-optout'];
 let me = null; // { providerName, status, role } once signed in
 
 // Never log or store form values: enrollment forms hold phone numbers.
@@ -67,28 +67,34 @@ const canSend = () => me?.role === 'staff' && me.status === 'approved';
 function allowed(v) {
   if (!me) return v === 'login' || v === 'apply';
   if (v === 'login' || v === 'apply') return false;
+  if (v.startsWith('admin-')) return me.role === 'admin';
+  if (me.role === 'admin') return false; // staff views: the server would 403 an admin anyway
   if (v === 'new' || v === 'enroll') return canSend();
   return true;
 }
+const home = () => (me?.role === 'admin' ? 'admin-alerts' : me ? 'alerts' : 'login');
 function route() {
   let v = location.hash.slice(1);
-  if (!views.includes(v)) v = me ? 'alerts' : 'login';
+  if (!views.includes(v)) v = home();
   if (!allowed(v)) {
-    const dest = me ? 'alerts' : 'login';
+    const dest = home();
     if (location.hash.slice(1) !== dest) { location.hash = dest; return; } // hashchange re-enters route()
     v = dest;
   }
   views.forEach((n) => $('#v-' + n).classList.toggle('on', n === v));
   $('#nav').hidden = !me;
-  const admin = me?.role === 'admin';
+  const role = me?.role === 'admin' ? 'admin' : 'staff';
   $('#nav').querySelectorAll('a').forEach((a) => {
-    a.hidden = admin || (a.dataset.v !== 'alerts' && !canSend());
+    a.hidden = a.dataset.role !== role || (role === 'staff' && a.dataset.v !== 'alerts' && !canSend());
     a.dataset.v === v ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current');
   });
   $('#v-' + v).querySelector('h1')?.focus();
   scrollTo(0, 0);
   if (v === 'alerts') showAlerts();
   if (v === 'new') paint();
+  if (v === 'admin-providers') loadProviders(false);
+  if (v === 'admin-alerts') loadHeld(false);
+  if (v === 'admin-optout') { $('#aoPh').value = ''; $('#aoOk').hidden = true; clearErr('#aoErr'); }
 }
 addEventListener('hashchange', route);
 
@@ -99,7 +105,6 @@ function setMe(m) {
   const banner = $('#statusBanner');
   banner.hidden = !m || m.role === 'admin' || m.status === 'approved';
   banner.textContent = m?.status === 'suspended' ? 'Your account is suspended' : 'Your application is pending review';
-  $('#adminNote').hidden = m?.role !== 'admin';
   paint();
 }
 // A full reload is the one reliable way to drop every typed value, draft, alert list and key
@@ -116,7 +121,7 @@ $('#loginForm').addEventListener('submit', async (e) => {
   btn.disabled = false;
   if (r.status !== 200) return showErr('#loginErr', errorMessage(r.status === 401 ? 'invalid_credentials' : r.data?.error ?? ''));
   $('#pw').value = '';
-  await boot('alerts');
+  await boot(true);
 });
 
 $('#applyForm').addEventListener('submit', async (e) => {
@@ -274,12 +279,136 @@ $('#optoutForm').addEventListener('submit', async (e) => {
   $('#optOk').hidden = false;
 });
 
+// ---------- admin ----------
+// Admin calls: a 401 drops everything (open confirms, lists) through the reload-to-login path.
+async function adminApi(method, path, body) {
+  const r = await api(method, path, body);
+  if (r.status === 401) { signedOut(); return null; }
+  return r;
+}
+const badge = (l) => el('span', { class: 'badge ' + l.tone }, icon(l.tone), l.text);
+const facts = (rows) => el('dl', { class: 'facts' }, ...rows.map(([k, v]) => el('div', {}, el('dt', {}, k), el('dd', {}, v))));
+const text = (v) => (v == null || v === '' ? 'Not given' : String(v));
+
+// Fetch and render a list. `row(item, load)` builds a card; focus goes to the heading after an action.
+function loader(listId, noun, url, emptyText, row) {
+  let seq = 0; // ignore a slow earlier response after the filter changed
+  const load = async (focus) => {
+    const n = ++seq, list = $(listId);
+    list.replaceChildren(el('p', { class: 'empty', role: 'status' }, `Loading ${noun}…`));
+    const r = await adminApi('GET', url());
+    if (!r || n !== seq) return;
+    if (r.status !== 200 || !Array.isArray(r.data)) {
+      const retry = el('button', { class: 'btn plain', type: 'button' }, 'Retry');
+      retry.addEventListener('click', () => load(true));
+      const box = el('div', { class: 'empty', role: 'alert', tabindex: '-1' }, el('p', {}, `We couldn't load ${noun}.`), retry);
+      list.replaceChildren(box);
+      return box.focus();
+    }
+    list.replaceChildren(...(r.data.length ? r.data.map((x) => row(x, load)) : [el('p', { class: 'empty' }, emptyText())]));
+    if (focus) list.closest('main').querySelector('h1').focus();
+  };
+  return load;
+}
+
+// POST an admin action. Buttons stay disabled while the request runs; 404/409 refresh the list since it was stale.
+async function runAction(path, busy, errId, okText, reload, restore) {
+  clearErr(errId);
+  busy.forEach((b) => (b.disabled = true));
+  const r = await adminApi('POST', path);
+  if (!r) return;
+  if (r.status === 200) { toast(okText); return reload(true); }
+  busy.forEach((b) => (b.disabled = false));
+  restore?.();
+  showErr(errId, adminErrorMessage(r.status, r.data?.error));
+  if ((r.status === 404 || r.status === 409) && r.data?.error !== 'geocode_failed') reload(false);
+}
+
+// In-page two-step confirm: the buttons swap for a question; focus moves into it and back on Cancel.
+function askConfirm(actions, trigger, question, label, run) {
+  const q = el('p', { tabindex: '-1' }, question);
+  const yes = el('button', { class: 'btn danger', type: 'button' }, label);
+  const no = el('button', { class: 'btn plain', type: 'button' }, 'Cancel');
+  const box = el('div', { class: 'confirm', role: 'group', 'aria-label': 'Confirm action' }, q, el('div', { class: 'actions' }, yes, no));
+  const close = () => { box.remove(); actions.hidden = false; };
+  no.addEventListener('click', () => { close(); trigger.focus(); });
+  yes.addEventListener('click', () => run([yes, no], () => { close(); trigger.focus(); }));
+  actions.hidden = true;
+  actions.after(box);
+  q.focus();
+}
+
+function providerRow(p, load) {
+  const c = p.contact && typeof p.contact === 'object' ? p.contact : { contactName: p.contact };
+  const go = (act, okText, busy, restore) => runAction(`/api/admin/providers/${p.id}/${act}`, busy, '#provErr', okText, load, restore);
+  const approve = el('button', { class: 'btn', type: 'button', 'aria-label': `Approve ${p.name}` }, 'Approve');
+  const suspend = el('button', { class: 'btn plain', type: 'button', 'aria-label': `Suspend ${p.name}` }, 'Suspend');
+  const actions = el('div', { class: 'actions' }, ...(p.status === 'approved' ? [suspend] : [approve]));
+  approve.addEventListener('click', () => go('approve', `Approved ${p.name}.`, [approve]));
+  suspend.addEventListener('click', () =>
+    askConfirm(actions, suspend, `Suspend ${p.name}? Alerts they already queued won't send.`, 'Confirm suspend',
+      (busy, restore) => go('suspend', `Suspended ${p.name}.`, busy, restore)));
+  return el('article', { class: 'card' },
+    el('h3', {}, p.name), badge(providerStatusLabel(p.status)),
+    facts([
+      ['Address', text(p.address)], ['Online check', badge(tavilyLabel(p.tavily_result))],
+      ['Contact person', text(c.contactName)], ['Phone', text(c.phone)], ['Website', text(c.website)],
+      ['Applicant email', text(p.applicantEmail)], ['Applied', formatEt(p.created_at) || 'Unknown'],
+    ]),
+    actions);
+}
+
+function heldRow(a, load) {
+  const ok = a.providerStatus === 'approved';
+  const approve = el('button', { class: 'btn', type: 'button', 'aria-label': `Approve alert from ${a.providerName}` }, 'Approve');
+  const reject = el('button', { class: 'btn plain', type: 'button', 'aria-label': `Reject alert from ${a.providerName}` }, 'Reject');
+  const actions = el('div', { class: 'actions' }, approve, reject);
+  const why = ok ? null : el('p', { class: 'reason', id: 'why-' + a.id }, a.providerStatus === 'suspended' ? "Provider suspended. This alert can't be approved." : "Provider isn't approved yet. This alert can't be approved.");
+  if (why) { approve.disabled = true; approve.setAttribute('aria-describedby', why.id); }
+  const go = (act, okText, busy, restore) => runAction(`/api/admin/alerts/${a.id}/${act}`, busy, '#holdErr', okText, load, restore);
+  approve.addEventListener('click', () => go('approve', 'Alert approved. It is queued to send.', [approve, reject]));
+  reject.addEventListener('click', () =>
+    askConfirm(actions, reject, 'Reject this alert? It will never be sent.', 'Confirm reject',
+      (busy, restore) => go('reject', 'Alert rejected.', busy, restore)));
+  const hours = hoursLabel(a.hoursCheck);
+  const where = a.geocoded ? { text: 'Address located', tone: 'ok' } : { text: 'Address not found', tone: 'bad' };
+  return el('article', { class: 'card' },
+    el('h3', {}, a.providerName), badge(providerStatusLabel(a.providerStatus)),
+    el('p', { class: 'msg' }, a.message),
+    facts([
+      ['Service', { food: 'Food', shelter: 'Shelter' }[a.serviceType] ?? text(a.serviceType)], ['Address', text(a.address)],
+      ['Starts', formatEt(a.startsAt) || 'Unknown'], ['Ends', formatEt(a.endsAt) || 'Unknown'],
+      ['Capacity cap', text(a.capacityCap)], ['Hours', badge(hours)], ['Address check', badge(where)],
+    ]),
+    ...(why ? [why] : []), actions);
+}
+
+const providerFilter = () => document.querySelector('input[name=pf]:checked').value;
+const loadProviders = loader('#providerList', 'providers', () => `/api/admin/providers?status=${providerFilter()}`, () => `No ${providerFilter()} applications.`, providerRow);
+const loadHeld = loader('#heldList', 'held alerts', () => '/api/admin/alerts', () => 'No alerts waiting for review.', heldRow);
+document.querySelectorAll('input[name=pf]').forEach((i) => i.addEventListener('change', () => { clearErr('#provErr'); loadProviders(false); }));
+
+// Same pattern as the staff opt-out: the number lives only in the input and is cleared after every submit.
+$('#adminOptoutForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearErr('#aoErr');
+  $('#aoOk').hidden = true;
+  const btn = $('#aoBtn');
+  btn.disabled = true;
+  const r = await adminApi('POST', '/api/admin/optout', { phone: $('#aoPh').value });
+  if (!r) return;
+  btn.disabled = false;
+  if (r.status !== 200) return showErr('#aoErr', adminErrorMessage(r.status, r.data?.error));
+  $('#aoPh').value = '';
+  $('#aoOk').hidden = false;
+});
+
 // ---------- start ----------
-async function boot(dest) {
+async function boot(landing) {
   const r = await api('GET', '/api/me');
   if (r.status === 200 && r.data) {
     setMe(r.data);
-    if (dest && location.hash.slice(1) !== dest) { location.hash = dest; return; } // hashchange runs route()
+    if (landing && location.hash.slice(1) !== home()) { location.hash = home(); return; } // hashchange runs route()
   } else setMe(null);
   route();
 }

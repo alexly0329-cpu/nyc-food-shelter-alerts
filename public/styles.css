@@ -128,3 +128,24 @@ nav.main a,nav.main button.signout{min-width:48px;min-height:48px}
 nav.main [hidden]{display:none!important}
 h1:focus{outline:none}
 #optoutForm{margin-top:3rem;padding-top:1.5rem;border-top:2px solid var(--asphalt)}
+
+/* admin */
+nav.main a[data-role=admin]{min-width:0}
+#providerFilter{margin-top:1.25rem}
+#provErr,#holdErr{margin-top:1rem}
+.card{display:grid;gap:.6rem;padding:1.1rem .2rem;border-bottom:2px solid var(--rule)}
+.card h3{font:800 1.35rem/1.1 var(--display);font-stretch:80%;overflow-wrap:anywhere}
+.card .msg{font-size:1.15rem;overflow-wrap:anywhere}
+.facts{display:grid;gap:.35rem;margin:0}
+.facts div{display:grid;gap:0 .6rem}
+.facts dt{color:var(--muted);font-size:1rem}
+.facts dd{margin:0;overflow-wrap:anywhere}
+.actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:.4rem}
+.actions .btn{flex:1 1 9rem}
+.confirm{display:grid;gap:.75rem;padding:.9rem 1rem;border:2px solid var(--asphalt);border-left:10px solid var(--red);background:var(--white);border-radius:6px;margin-top:.4rem}
+.confirm p{margin:0;font-weight:700}
+.confirm p:focus{outline:3px solid var(--harbor);outline-offset:3px}
+.btn.danger{background:var(--red);color:#fff}
+.reason{color:var(--red);font-weight:700;margin:0}
+@media (min-width:600px){.facts div{grid-template-columns:11rem 1fr}}
+.actions[hidden]{display:none}
