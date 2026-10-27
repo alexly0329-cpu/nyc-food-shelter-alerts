@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: "Plex Sans"; font-weight: 400; src: url("assets/fonts/Sans400.ttf"); }
+      @font-face { font-family: "Plex Sans"; font-weight: 500; src: url("assets/fonts/Sans500.ttf"); }
+      @font-face { font-family: "Plex Sans"; font-weight: 600; src: url("assets/fonts/Sans600.ttf"); }
+      @font-face { font-family: "Plex Mono"; font-weight: 400; src: url("assets/fonts/Mono400.ttf"); }
+      @font-face { font-family: "Plex Mono"; font-weight: 500; src: url("assets/fonts/Mono500.ttf"); }
+      :root {
+        --bg: #0b1524;
+        --surface: #111f36;
+        --surface-2: #17294a;
+        --text: #e4e9f0;
+        --muted: #a5b4cc;
+        --edge: #6f86ab;
+        --rule: #2b3c5c;
+        --accent: #f5c518;
+        --on-accent: #0b1524;
+        --ok: #62d39b;
+        --bad: #ff8f86;
+        --sans: "Plex Sans", system-ui, sans-serif;
+        --mono: "Plex Mono", ui-monospace, monospace;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); }
+      #root { position: relative; width: 1920px; height: 1080px; background: var(--bg); color: var(--text); font-family: var(--sans); overflow: hidden; }
+      .scene { position: absolute; inset: 0; }
+      .mark { position: absolute; left: 120px; top: 84px; font-family: var(--mono); font-size: 26px; letter-spacing: 0.04em; color: var(--muted); }
+      .label { font-family: var(--mono); font-size: 28px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+      .label .n { color: var(--muted); margin-right: 18px; }
+      .abs { position: absolute; }
+
+      /* S1 */
+      #s1 h1 { position: absolute; left: 120px; top: 330px; font-weight: 500; font-size: 124px; line-height: 1.12; letter-spacing: -0.025em; }
+      #s1 h1 span { display: block; }
+      #s1 .two { color: var(--accent); }
+
+      /* S2 */
+      #s2 .label { position: absolute; left: 120px; top: 84px; }
+      #s2 .card { position: absolute; left: 510px; top: 150px; width: 900px; height: 850px; background: var(--surface); border: 2px solid var(--rule); border-radius: 28px; padding: 44px 56px; }
+      #s2 h2 { font-weight: 600; font-size: 54px; letter-spacing: -0.02em; margin-bottom: 26px; }
+      .choices { display: flex; gap: 16px; margin-bottom: 26px; }
+      .choice { font-size: 30px; padding: 12px 34px; border-radius: 999px; border: 2px solid var(--edge); color: var(--muted); }
+      .choice.on { border-color: var(--accent); color: var(--accent); background: rgba(245,197,24,0.1); }
+      .fl { font-family: var(--mono); font-size: 22px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+      .field { height: 76px; border: 2px solid var(--edge); border-radius: 16px; background: var(--bg); padding: 0 26px; display: flex; align-items: center; font-size: 36px; margin-bottom: 26px; }
+      .field.tall { height: 76px; }
+      .typed span { opacity: 0; }
+      .count { font-family: var(--mono); font-size: 22px; color: var(--muted); position: relative; height: 28px; margin: -14px 0 24px; }
+      .count span { position: absolute; left: 0; top: 0; }
+      .stepper { display: flex; align-items: center; gap: 28px; margin-bottom: 14px; }
+      .stepper b { width: 64px; height: 64px; border-radius: 999px; border: 2px solid var(--edge); display: flex; align-items: center; justify-content: center; font-size: 38px; font-weight: 400; color: var(--muted); }
+      .stepper output { font-family: var(--mono); font-size: 56px; font-weight: 500; min-width: 90px; text-align: center; }
+      .bar { height: 14px; border-radius: 999px; background: var(--rule); overflow: hidden; margin-bottom: 34px; }
+      .bar i { display: block; height: 100%; width: 100%; background: var(--accent); transform-origin: left center; }
+      .btnwrap { position: relative; width: 360px; }
+      .send { height: 84px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-weight: 600; font-size: 34px; display: flex; align-items: center; justify-content: center; }
+      .cursor { position: absolute; left: 150px; top: 40px; width: 44px; height: 44px; }
+
+      /* S3 */
+      #s3 .label { position: absolute; left: 120px; top: 84px; }
+      #s3 h2 { position: absolute; left: 120px; top: 330px; width: 640px; font-weight: 500; font-size: 104px; line-height: 1.1; letter-spacing: -0.025em; }
+      .res { position: absolute; left: 860px; width: 940px; border-radius: 28px; padding: 40px 48px; background: var(--surface); border: 2px solid var(--rule); }
+      .res .q { font-size: 38px; line-height: 1.25; color: var(--text); margin-bottom: 22px; }
+      .res .out { display: flex; align-items: center; gap: 18px; font-size: 38px; font-weight: 600; }
+      .res .dot { width: 52px; height: 52px; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: 600; flex: none; color: var(--bg); }
+      #r1 { top: 260px; } #r1 .dot { background: var(--ok); } #r1 .out { color: var(--ok); }
+      #r2 { top: 560px; } #r2 .dot { background: var(--bad); } #r2 .out { color: var(--bad); }
+      .res .alertline { font-family: var(--mono); font-size: 26px; color: var(--muted); margin-bottom: 14px; }
+
+      /* S4 */
+      #s4 .label { position: absolute; left: 120px; top: 84px; }
+      .phone { position: absolute; left: 1060px; top: 120px; width: 560px; height: 840px; border-radius: 64px; background: var(--surface); border: 2px solid var(--edge); padding: 64px 40px; }
+      .phone small { display: block; font-family: var(--mono); font-size: 22px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); text-align: center; margin-bottom: 40px; }
+      .bubble { max-width: 440px; padding: 26px 32px; border-radius: 30px 30px 30px 8px; background: var(--surface-2); font-size: 38px; line-height: 1.25; margin-bottom: 30px; }
+      .bubble.me { margin-left: auto; border-radius: 30px 30px 8px 30px; background: var(--accent); color: var(--on-accent); font-weight: 600; width: max-content; }
+      .end { text-align: center; font-family: var(--mono); font-size: 24px; color: var(--muted); margin-top: 40px; }
+      #s4 h2 { position: absolute; left: 120px; top: 330px; width: 820px; font-weight: 500; font-size: 112px; line-height: 1.1; letter-spacing: -0.025em; }
+      #s4 .sub { position: absolute; left: 120px; top: 640px; width: 780px; font-size: 44px; line-height: 1.3; color: var(--muted); }
+
+      /* S5 */
+      #s5 .label { position: absolute; left: 120px; top: 84px; }
+      #s5 h2 { position: absolute; left: 120px; top: 200px; font-weight: 500; font-size: 92px; letter-spacing: -0.025em; }
+      .rule { position: absolute; left: 120px; right: 120px; height: 150px; border-top: 2px solid var(--rule); display: flex; align-items: center; gap: 44px; }
+      .rule .tag { font-family: var(--mono); font-weight: 500; font-size: 30px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--on-accent); background: var(--accent); padding: 8px 22px; border-radius: 999px; flex: none; }
+      .rule .t { font-size: 52px; line-height: 1.2; }
+
+      /* S6 */
+      #s6 h2 { position: absolute; left: 120px; top: 300px; width: 1500px; font-weight: 500; font-size: 128px; line-height: 1.1; letter-spacing: -0.03em; }
+      #s6 h2 em { font-style: normal; color: var(--accent); }
+      #s6 .foot { position: absolute; left: 120px; top: 760px; font-family: var(--mono); font-size: 28px; line-height: 1.7; color: var(--muted); letter-spacing: 0.03em; }
+      #s6 .foot b { color: var(--text); font-weight: 500; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="24" data-width="1920" data-height="1080">
+
+      <!-- SCENE 1: hook -->
+      <section id="s1" class="scene clip" data-start="0" data-duration="4.23" data-track-index="0">
+        <div class="mark" id="m1">NYC food + shelter alerts</div>
+        <h1><span id="l1">When a pantry has food,</span><span class="two" id="l2">the neighbors hear first.</span></h1>
+      </section>
+
+      <!-- SCENE 2: the pantry posts an alert -->
+      <section id="s2" class="scene clip" data-start="4.23" data-duration="5.27" data-track-index="0">
+        <div class="label" id="lab2"><span class="n">02</span>The pantry posts an alert</div>
+        <div class="card" id="card2">
+          <h2>New alert</h2>
+          <div class="choices"><span class="choice on">Food</span><span class="choice">Shelter</span></div>
+          <div class="fl">Street address</div>
+          <div class="field typed" id="addr">214 Marcy Ave</div>
+          <div class="fl">Message</div>
+          <div class="field typed" id="msg">Hot meals, 5 to 7 pm</div>
+          <div class="count"><span id="c0">0 of 100 characters</span><span id="c1" style="opacity:0">20 of 100 characters</span></div>
+          <div class="fl">How many people can you serve?</div>
+          <div class="stepper"><b>−</b><output>60</output><b>+</b></div>
+          <div class="bar"><i id="fill"></i></div>
+          <div class="btnwrap">
+            <div class="send" id="send">Send alert</div>
+            <svg class="cursor" id="cursor" viewBox="0 0 24 24"><path d="M4 2l15 9-6.5 1.6L9.8 19z" fill="#E4E9F0" stroke="#0B1524" stroke-width="1.4" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCENE 3: we check before sending -->
+      <section id="s3" class="scene clip" data-start="9.5" data-duration="4.2" data-track-index="0">
+        <div class="label" id="lab3"><span class="n">03</span>Before anything is sent</div>
+        <h2 id="h3">We check before sending</h2>
+        <div class="res" id="r1">
+          <div class="alertline">Hot meals, 5 to 7 pm · 214 Marcy Ave</div>
+          <div class="q">A web page names the pantry and its street.</div>
+          <div class="out"><span class="dot">✓</span>Alert goes out</div>
+        </div>
+        <div class="res" id="r2">
+          <div class="alertline">No page matches</div>
+          <div class="q">The alert is held for a person to review.</div>
+          <div class="out"><span class="dot">!</span>Nothing is sent</div>
+        </div>
+      </section>
+
+      <!-- SCENE 4: neighbors hear first -->
+      <section id="s4" class="scene clip" data-start="13.7" data-duration="3.2" data-track-index="0">
+        <div class="label" id="lab4"><span class="n">04</span>Neighbors hear first</div>
+        <h2 id="h4">A text, or a call.</h2>
+        <p class="sub" id="sub4">Reply STOP and the messages end.</p>
+        <div class="phone" id="phone">
+          <small>Text message</small>
+          <div class="bubble" id="b1">Hot meals, 5 to 7 pm</div>
+          <div class="bubble me" id="b2">STOP</div>
+          <div class="end" id="end4">Messages end.</div>
+        </div>
+      </section>
+
+      <!-- SCENE 5: the rules -->
+      <section id="s5" class="scene clip" data-start="16.9" data-duration="3.7" data-track-index="0">
+        <div class="label" id="lab5"><span class="n">The rules</span></div>
+        <h2 id="h5">What this will never do</h2>
+        <div class="rule" id="ru1" style="top:420px"><span class="tag">Never</span><span class="t">message more people than the cap.</span></div>
+        <div class="rule" id="ru2" style="top:570px"><span class="tag">Never</span><span class="t">message anyone after they reply STOP.</span></div>
+        <div class="rule" id="ru3" style="top:720px"><span class="tag">Never</span><span class="t">show a provider anyone’s phone number.</span></div>
+      </section>
+
+      <!-- SCENE 6: outro -->
+      <section id="s6" class="scene clip" data-start="20.6" data-duration="3.4" data-track-index="0">
+        <h2 id="h6">Every alert is a person who <em>said yes.</em></h2>
+        <div class="foot" id="foot6"><b>NYC food + shelter alerts</b><br />Prototype. Not open to real providers yet.<br />nyc-food-shelter-alerts.onrender.com</div>
+      </section>
+
+      <!-- AUDIO -->
+      <audio id="music" data-start="0" data-duration="24" data-track-index="10" data-volume="0.42" data-fade-in="0.6" data-fade-out="1.8" src="assets/music/bed.mp3"></audio>
+      <audio id="sfx1" data-start="2.12" data-duration="0.3" data-track-index="11" data-volume="0.5" src="assets/sfx/bong_001.ogg"></audio>
+      <audio id="sfx2" data-start="4.23" data-duration="0.3" data-track-index="12" data-volume="0.35" src="assets/sfx/switch_004.ogg"></audio>
+      <audio id="sfx3" data-start="4.95" data-duration="0.2" data-track-index="13" data-volume="0.35" src="assets/sfx/keypress-001.wav"></audio>
+      <audio id="sfx4" data-start="5.25" data-duration="0.2" data-track-index="14" data-volume="0.35" src="assets/sfx/keypress-002.wav"></audio>
+      <audio id="sfx5" data-start="5.55" data-duration="0.2" data-track-index="13" data-volume="0.35" src="assets/sfx/keypress-003.wav"></audio>
+      <audio id="sfx6" data-start="5.95" data-duration="0.2" data-track-index="14" data-volume="0.35" src="assets/sfx/keypress-004.wav"></audio>
+      <audio id="sfx7" data-start="6.25" data-duration="0.2" data-track-index="13" data-volume="0.35" src="assets/sfx/keypress-005.wav"></audio>
+      <audio id="sfx8" data-start="6.6" data-duration="0.2" data-track-index="14" data-volume="0.35" src="assets/sfx/keypress-006.wav"></audio>
+      <audio id="sfx9" data-start="6.95" data-duration="0.2" data-track-index="13" data-volume="0.35" src="assets/sfx/keypress-002.wav"></audio>
+      <audio id="sfx10" data-start="8.44" data-duration="0.2" data-track-index="15" data-volume="0.6" src="assets/sfx/click_003.ogg"></audio>
+      <audio id="sfx11" data-start="8.5" data-duration="0.3" data-track-index="16" data-volume="0.4" src="assets/sfx/select_008.ogg"></audio>
+      <audio id="sfx12" data-start="10.54" data-duration="0.3" data-track-index="12" data-volume="0.4" src="assets/sfx/switch_004.ogg"></audio>
+      <audio id="sfx13" data-start="11.6" data-duration="0.3" data-track-index="13" data-volume="0.4" src="assets/sfx/select_008.ogg"></audio>
+      <audio id="sfx14" data-start="12.65" data-duration="0.3" data-track-index="12" data-volume="0.4" src="assets/sfx/switch_004.ogg"></audio>
+      <audio id="sfx15" data-start="14.22" data-duration="0.3" data-track-index="12" data-volume="0.45" src="assets/sfx/bong_001.ogg"></audio>
+      <audio id="sfx16" data-start="15.28" data-duration="0.2" data-track-index="13" data-volume="0.4" src="assets/sfx/click_002.ogg"></audio>
+      <audio id="sfx17" data-start="17.38" data-duration="0.2" data-track-index="12" data-volume="0.35" src="assets/sfx/rollover2.ogg"></audio>
+      <audio id="sfx18" data-start="17.91" data-duration="0.2" data-track-index="13" data-volume="0.35" src="assets/sfx/rollover2.ogg"></audio>
+      <audio id="sfx19" data-start="18.44" data-duration="0.2" data-track-index="14" data-volume="0.35" src="assets/sfx/rollover2.ogg"></audio>
+      <audio id="sfx20" data-start="21.06" data-duration="0.4" data-track-index="12" data-volume="0.5" src="assets/sfx/impactSoft_medium_001.ogg"></audio>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // split typed fields into per-character spans (deterministic, seek-safe)
+      document.querySelectorAll(".typed").forEach((el) => {
+        const txt = el.textContent;
+        el.textContent = "";
+        for (const ch of txt) {
+          const s = document.createElement("span");
+          s.textContent = ch;
+          if (ch === " ") s.style.whiteSpace = "pre";
+          el.appendChild(s);
+        }
+      });
+      const type = (sel, t0, step) => {
+        document.querySelectorAll(sel + " span").forEach((s, i) => tl.set(s, { opacity: 1 }, t0 + i * step));
+      };
+
+      const enter = (sel, t, y = 36, d = 0.5) =>
+        tl.fromTo(sel, { opacity: 0, y }, { opacity: 1, y: 0, duration: d, ease: "power3.out" }, t);
+      const leave = (sel, t, d = 0.3) => tl.to(sel, { opacity: 0, duration: d, ease: "power2.in" }, t);
+
+      // ---- S1 hook (0 - 4.23)
+      enter("#m1", 0.2, 0, 0.6);
+      enter("#l1", 0.45, 40, 0.6);
+      enter("#l2", 2.12, 40, 0.6); // beat-grid: 2.12s
+      leave("#s1", 3.93);
+
+      // ---- S2 form (4.23 - 9.5)  [local clock = global]
+      tl.fromTo("#s2", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power2.out" }, 4.23); // beat-locked: 4.23s
+      enter("#lab2", 4.35, 20, 0.5);
+      enter("#card2", 4.35, 50, 0.6);
+      type("#addr", 4.95, 0.07);
+      type("#msg", 5.45, 0.075);
+      tl.set("#c0", { opacity: 0 }, 6.95);
+      tl.set("#c1", { opacity: 1 }, 6.95);
+      tl.from("#fill", { scaleX: 0.0, duration: 0.7, ease: "power2.out" }, 7.2);
+      // cursor travels to Send, presses on beat 8.44
+      tl.fromTo("#cursor", { x: 260, y: 140, opacity: 0 }, { x: 0, y: 0, opacity: 1, duration: 1.0, ease: "power2.inOut" }, 7.4);
+      tl.to("#send", { scale: 0.95, duration: 0.1, ease: "power2.in" }, 8.44); // beat-grid: 8.44s
+      tl.to("#send", { scale: 1, duration: 0.2, ease: "power2.out" }, 8.54);
+      leave("#s2", 9.2);
+
+      // ---- S3 check (9.5 - 13.7)
+      tl.fromTo("#s3", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, 9.5);
+      enter("#lab3", 9.6, 20, 0.5);
+      enter("#h3", 9.7, 40, 0.6);
+      enter("#r1", 10.54, 40, 0.5); // beat-locked: 10.54s
+      enter("#r2", 12.65, 40, 0.5); // beat-locked: 12.65s
+      leave("#s3", 13.4);
+
+      // ---- S4 phone (13.7 - 16.9)
+      tl.fromTo("#s4", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, 13.7);
+      enter("#lab4", 13.8, 20, 0.5);
+      enter("#h4", 13.85, 40, 0.6);
+      enter("#phone", 13.8, 60, 0.6);
+      enter("#b1", 14.22, 24, 0.4); // beat-grid: 14.22s
+      enter("#b2", 15.28, 24, 0.35); // beat-grid: 15.28s
+      enter("#sub4", 15.0, 24, 0.5);
+      enter("#end4", 15.85, 10, 0.4);
+      leave("#s4", 16.6);
+
+      // ---- S5 rules (16.9 - 20.6)
+      tl.fromTo("#s5", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, 16.9);
+      enter("#lab5", 17.0, 20, 0.5);
+      enter("#h5", 17.0, 40, 0.5);
+      enter("#ru1", 17.38, 36, 0.45); // beat-grid: 17.38s
+      enter("#ru2", 17.91, 36, 0.45); // beat-grid: 17.91s
+      enter("#ru3", 18.44, 36, 0.45); // beat-grid: 18.44s
+      leave("#s5", 20.3);
+
+      // ---- S6 outro (20.6 - 24)
+      tl.fromTo("#s6", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, 20.6);
+      enter("#h6", 21.06, 40, 0.7); // beat-grid: 21.06s
+      enter("#foot6", 22.1, 20, 0.6);
+      leave("#s6", 23.4, 0.6);
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>
