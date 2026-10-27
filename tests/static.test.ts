@@ -80,10 +80,10 @@ describe('CSP-clean source', () => {
     const hrefs = links.map((l) => /href="([^"]+)"/.exec(l)?.[1] ?? '');
     expect(hrefs.length).toBeGreaterThan(0);
     for (const h of hrefs) expect(h).toMatch(/^(https:\/\/fonts\.googleapis\.com[\/?]|https:\/\/fonts\.googleapis\.com$|\/styles\.css$)/);
-    expect(html).toContain('IBM+Plex+Sans');
+    expect(html).toContain('Archivo');
     expect(html).toContain('IBM+Plex+Mono');
-    expect(html).not.toMatch(/Archivo|Atkinson/);
-    expect(readFileSync('public/styles.css', 'utf8')).not.toMatch(/Archivo|Atkinson|https?:\/\//);
+    expect(html).not.toMatch(/IBM\+Plex\+Sans|Atkinson/);
+    expect(readFileSync('public/styles.css', 'utf8')).not.toMatch(/Atkinson|https?:\/\//);
   });
   it('JS uses no HTML-string or eval sinks', () => {
     for (const f of ['public/app.js', 'public/lib.js']) {
