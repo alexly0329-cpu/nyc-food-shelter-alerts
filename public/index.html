@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NYC food and shelter alerts</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter+Tight:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Serif+Display&family=Inter+Tight:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -25,7 +25,7 @@
 <main class="view home" id="v-home">
   <div class="lp">
     <header class="lp-top">
-      <span class="wordmark">NYC food<br>+ shelter alerts</span>
+      <a class="wordmark" href="#home" aria-label="NYC food and shelter alerts home">NYC<span>food + shelter alerts</span></a>
       <nav class="lp-nav" aria-label="Account">
         <a href="#login">Sign in</a>
         <a href="#apply">Apply to join</a>
@@ -34,12 +34,8 @@
     </header>
 
     <section class="hero" aria-labelledby="heroH">
-      <svg class="pole" viewBox="0 0 240 360" role="img" aria-label="Street pole with a yellow food sign and a blue shelter sign">
-        <rect class="pole-bar" x="112" y="10" width="16" height="350" rx="8"/>
-        <g class="sign s1"><rect class="sign-y" x="28" y="40" width="184" height="46" rx="6"/><text class="sign-t" x="120" y="70" text-anchor="middle">FOOD</text></g>
-        <g class="sign s2"><circle class="sign-d" cx="120" cy="170" r="52"/><circle class="sign-dot" cx="120" cy="170" r="8"/></g>
-        <g class="sign s3"><polygon class="sign-i" points="20,250 200,250 224,276 200,302 20,302"/><text class="sign-w" x="108" y="284" text-anchor="middle">SHELTER</text></g>
-      </svg>
+      <img class="hero-photo" src="/images/nyc-neighborhood.jpg" alt="" fetchpriority="high" width="2000" height="1333">
+      <span class="hero-kicker">A little closer. A little more connected.</span>
       <div class="hero-in">
         <h1 id="heroH" tabindex="-1"><span>When a pantry has food,</span><span class="two">the neighbors hear first.</span></h1>
         <p class="sub">Food banks and shelters send a short text or call to nearby people who signed up in person. Nothing goes out until the address checks out or a person approves it.</p>
@@ -48,11 +44,22 @@
           <button class="textlink" type="button" data-scroll="story">See how it works</button>
         </div>
       </div>
-      <dl class="meta">
-        <div><dt>Base</dt><dd>New York City</dd></div>
-        <div><dt>Focus</dt><dd>Food pantry and shelter alerts / text and voice</dd></div>
-        <div><dt>Index</dt><dd>One message a day, at most</dd></div>
-      </dl>
+      <div class="hero-bottom"><span>Built for New York. Built around people.</span><button type="button" data-scroll="places" aria-label="Explore the network">↓</button><span>Food. Shelter. A timely message.</span></div>
+    </section>
+
+    <section class="places" id="places" aria-labelledby="placesH">
+      <span class="eyebrow">Good neighbors, connected.</span>
+      <h2 id="placesH" tabindex="-1">Whatever someone needs,<br>help them hear about it.</h2>
+      <div class="place-grid">
+        <article class="place-card">
+          <img src="/images/food-market.jpg" alt="Fresh produce at a neighborhood market" loading="lazy" width="1000" height="667">
+          <div class="place-copy"><span class="eyebrow">01 / Food banks &amp; pantries</span><h3>A meal within reach.</h3><p>When food is available, let nearby people who signed up know. A short text. A timely call. A little less distance between a meal and a neighbor.</p><button class="textlink" type="button" data-scroll="story">How alerts work <span aria-hidden="true">↗</span></button></div>
+        </article>
+        <article class="place-card">
+          <div class="shelter-art" aria-hidden="true"><svg viewBox="0 0 500 340"><circle cx="380" cy="82" r="37"/><path class="roof" d="M112 175L250 65L388 175"/><path class="house" d="M140 162V295H360V162"/><path class="door" d="M225 295V213Q250 186 275 213V295"/><path class="window" d="M166 192H201V230H166ZM300 192H335V230H300Z"/><path class="ground" d="M40 296Q150 280 250 296T460 296"/></svg><span>A place to start again.</span></div>
+          <div class="place-copy"><span class="eyebrow">02 / Shelters &amp; support</span><h3>A place to turn to.</h3><p>Help nearby neighbors hear about shelter availability. Reach only the people who agreed, with a message that respects their privacy.</p><button class="textlink" type="button" data-scroll="rules">Our commitments <span aria-hidden="true">↗</span></button></div>
+        </article>
+      </div>
     </section>
 
     <section class="sec" id="story" aria-labelledby="storyH">
@@ -67,9 +74,9 @@
       </ol>
     </section>
 
-    <section class="sec" aria-labelledby="rulesH">
+    <section class="sec" id="rules" aria-labelledby="rulesH">
       <span class="label">The rules</span>
-      <h2 id="rulesH">What this will never do</h2>
+      <h2 id="rulesH" tabindex="-1">What this will never do</h2>
       <ul class="rules">
         <li><span class="tag">Never</span><span>send an alert whose address we couldn&rsquo;t confirm, unless a person has reviewed and approved it.</span></li>
         <li><span class="tag">Never</span><span>message more people than the cap.</span></li>
