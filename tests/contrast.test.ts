@@ -24,13 +24,13 @@ const PAIRS: Array<[string, string, number]> = [
   ['link', 'bg', 4.5], ['link', 'surface', 4.5], ['link', 'surface-2', 4.5],
   ['ok', 'bg', 4.5], ['ok', 'surface', 4.5], ['ok', 'surface-2', 4.5],
   ['bad', 'bg', 4.5], ['bad', 'surface', 4.5], ['bad', 'surface-2', 4.5],
-  ['accent', 'bg', 4.5], ['accent', 'surface', 4.5], ['accent', 'surface-2', 4.5],
-  ['on-accent', 'accent', 4.5], ['on-accent', 'bad', 4.5],
+  ['on-accent', 'accent', 4.5], ['bg', 'bad', 4.5],
+  ['accent-ink', 'bg', 4.5], ['accent-ink', 'surface', 4.5], ['accent-ink', 'surface-2', 4.5],
   ['edge', 'bg', 3], ['edge', 'surface', 3], ['edge', 'surface-2', 3],
-  ['accent', 'bg', 3], // focus ring
+  ['text', 'bg', 3], // focus ring
 ];
 
-describe('dark theme contrast', () => {
+describe('light theme contrast', () => {
   it('reads every token it needs', () => {
     for (const [f, b] of PAIRS) { expect(tokens[f], f).toBeDefined(); expect(tokens[b], b).toBeDefined(); }
   });
