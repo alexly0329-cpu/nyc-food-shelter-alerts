@@ -25,14 +25,21 @@
 <main class="view home" id="v-home">
   <div class="lp">
     <header class="lp-top">
-      <span class="wordmark">NYC food + shelter alerts</span>
-      <div class="pills">
-        <a class="btn plain" href="#login">Sign in</a>
-        <a class="btn plain" href="#apply">Apply to join</a>
-      </div>
+      <span class="wordmark">NYC food<br>+ shelter alerts</span>
+      <nav class="lp-nav" aria-label="Account">
+        <a href="#login">Sign in</a>
+        <a href="#apply">Apply to join</a>
+        <button type="button" data-scroll="story">How it works</button>
+      </nav>
     </header>
 
     <section class="hero" aria-labelledby="heroH">
+      <svg class="pole" viewBox="0 0 240 360" role="img" aria-label="Street pole with a yellow food sign and a blue shelter sign">
+        <rect class="pole-bar" x="112" y="10" width="16" height="350" rx="8"/>
+        <g class="sign s1"><rect class="sign-y" x="28" y="40" width="184" height="46" rx="6"/><text class="sign-t" x="120" y="70" text-anchor="middle">FOOD</text></g>
+        <g class="sign s2"><circle class="sign-d" cx="120" cy="170" r="52"/><circle class="sign-dot" cx="120" cy="170" r="8"/></g>
+        <g class="sign s3"><polygon class="sign-i" points="20,250 200,250 224,276 200,302 20,302"/><text class="sign-w" x="108" y="284" text-anchor="middle">SHELTER</text></g>
+      </svg>
       <div class="hero-in">
         <h1 id="heroH" tabindex="-1"><span>When a pantry has food,</span><span class="two">the neighbors hear first.</span></h1>
         <p class="sub">Food banks and shelters send a short text or call to nearby people who signed up in person. Nothing goes out until the address checks out or a person approves it.</p>
@@ -41,6 +48,11 @@
           <button class="textlink" type="button" data-scroll="story">See how it works</button>
         </div>
       </div>
+      <dl class="meta">
+        <div><dt>Base</dt><dd>New York City</dd></div>
+        <div><dt>Focus</dt><dd>Food pantry and shelter alerts / text and voice</dd></div>
+        <div><dt>Index</dt><dd>One message a day, at most</dd></div>
+      </dl>
     </section>
 
     <section class="sec" id="story" aria-labelledby="storyH">
